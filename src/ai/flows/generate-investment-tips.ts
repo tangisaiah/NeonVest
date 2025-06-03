@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -5,7 +6,7 @@
  *
  * - generateInvestmentTips - A function that generates investment tips based on investment results.
  * - InvestmentTipsInput - The input type for the generateInvestmentTips function.
- * - InvestmentTipsOutput - The return type for the generateInvestmentTips function.
+ * - InvestmentTipsOutput - The return type for the generateInvestmentTips function, which includes optional tips and an optional error message.
  */
 
 import {ai} from '@/ai/genkit';
@@ -22,10 +23,17 @@ const InvestmentTipsInputSchema = z.object({
 });
 export type InvestmentTipsInput = z.infer<typeof InvestmentTipsInputSchema>;
 
-const InvestmentTipsOutputSchema = z.object({
+// Schema for the data structure the LLM is expected to return
+const InvestmentTipsLLMOutputSchema = z.object({
   tips: z.array(z.string()).describe('An array of personalized investment tips.'),
 });
-export type InvestmentTipsOutput = z.infer<typeof InvestmentTipsOutputSchema>;
+
+// Schema for the actual output of the flow, including potential errors
+const InvestmentTipsFlowOutputSchema = z.object({
+  tips: z.array(z.string()).optional().describe('An array of personalized investment tips, if successful.'),
+  error: z.string().optional().describe('An error message, if tips generation failed.'),
+});
+export type InvestmentTipsOutput = z.infer<typeof InvestmentTipsFlowOutputSchema>;
 
 export async function generateInvestmentTips(input: InvestmentTipsInput): Promise<InvestmentTipsOutput> {
   return generateInvestmentTipsFlow(input);
@@ -34,8 +42,8 @@ export async function generateInvestmentTips(input: InvestmentTipsInput): Promis
 const prompt = ai.definePrompt({
   name: 'investmentTipsPrompt',
   input: {schema: InvestmentTipsInputSchema},
-  output: {schema: InvestmentTipsOutputSchema},
-  prompt: `You are an expert financial advisor. Provide personalized investment tips based on the following investment calculation results.  The response should be an array of tips.
+  output: {schema: InvestmentTipsLLMOutputSchema}, // LLM aims to produce this
+  prompt: `You are an expert financial advisor. Provide personalized investment tips based on the following investment calculation results. The response should be an array of tips.
 
 Initial Investment: {{{initialInvestment}}}
 Monthly Contribution: {{{monthlyContribution}}}
@@ -53,10 +61,30 @@ const generateInvestmentTipsFlow = ai.defineFlow(
   {
     name: 'generateInvestmentTipsFlow',
     inputSchema: InvestmentTipsInputSchema,
-    outputSchema: InvestmentTipsOutputSchema,
+    outputSchema: InvestmentTipsFlowOutputSchema, // Flow returns this extended schema
   },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
+  async (input): Promise<InvestmentTipsOutput> => {
+    try {
+      const llmResponse = await prompt(input);
+      if (!llmResponse.output || !llmResponse.output.tips || llmResponse.output.tips.length === 0) {
+        console.warn("AI model returned no tips or undefined output.");
+        return { tips: [], error: "The AI model did not provide any tips at this time." };
+      }
+      return { tips: llmResponse.output.tips, error: undefined };
+    } catch (e) {
+      console.error("Error in generateInvestmentTipsFlow during LLM call:", e);
+      let errorMessage = "An unexpected error occurred while generating AI tips.";
+      if (e instanceof Error) {
+        if (e.message.includes("503") || e.message.toLowerCase().includes("service unavailable") || e.message.toLowerCase().includes("model is overloaded")) {
+          errorMessage = "The AI model is currently overloaded. Please try again later.";
+        } else if (e.message.toLowerCase().includes("api key not valid")) {
+          errorMessage = "AI configuration error. Please check API key.";
+        }
+        else {
+           errorMessage = `Failed to generate tips.`; // Keep server error details from client
+        }
+      }
+      return { tips: [], error: errorMessage };
+    }
   }
 );

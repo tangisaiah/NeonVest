@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { generateInvestmentTips, type InvestmentTipsInput } from '@/ai/flows/generate-investment-tips';
+import { generateInvestmentTips, type InvestmentTipsInput, type InvestmentTipsOutput } from '@/ai/flows/generate-investment-tips';
 import { DollarSign, Percent, CalendarDays, TrendingUp, Lightbulb, Loader2, AreaChart } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
@@ -133,13 +133,31 @@ export default function InvestmentCalculatorPage() {
             totalInterest: results.totalInterest,
             totalContributions: results.totalContributions,
           };
-          const tipsOutput = await generateInvestmentTips(aiInput);
-          setAiTips(tipsOutput.tips);
-        } catch (error) {
-          console.error("Error generating AI tips:", error);
+          const tipsResult: InvestmentTipsOutput = await generateInvestmentTips(aiInput);
+
+          if (tipsResult.error) {
+            console.error("AI tips generation failed with error message:", tipsResult.error);
+            toast({
+              title: "AI Tips Error",
+              description: tipsResult.error,
+              variant: "destructive",
+            });
+            setAiTips([]);
+          } else if (tipsResult.tips && tipsResult.tips.length > 0) {
+            setAiTips(tipsResult.tips);
+          } else {
+            // Handles case where tips array is empty or undefined without an error
+            setAiTips([]);
+             toast({ // Optional: Inform user if no tips were generated even if no error
+               title: "AI Tips",
+               description: "No specific tips were generated for this scenario.",
+             });
+          }
+        } catch (error) { // Catch for network errors or other unexpected client-side issues
+          console.error("Network or client-side error fetching AI tips:", error);
           toast({
             title: "Error",
-            description: "Could not generate AI investment tips. Please try again.",
+            description: "Could not connect to the AI service. Please check your connection and try again.",
             variant: "destructive",
           });
           setAiTips([]);
@@ -150,14 +168,14 @@ export default function InvestmentCalculatorPage() {
       fetchAITips();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results, formInputsForAI]);
+  }, [results, formInputsForAI, toast]);
 
   useEffect(() => {
     if (yearlyData.length > 0 && formInputsForAI) {
       let cumulativeAmountInvested = formInputsForAI.initialInvestment;
 
       const newChartData = yearlyData.map(data => {
-        cumulativeAmountInvested += data.contributions; // Annual contributions for this year
+        cumulativeAmountInvested += data.contributions; 
 
         return {
           name: `Year ${data.year}`,
@@ -407,4 +425,3 @@ export default function InvestmentCalculatorPage() {
     </div>
   );
 }
-
