@@ -34,9 +34,9 @@
     --input: 240 0% 15%; /* Input background */
     --ring: 128 100% 54%; /* Neon Green for focus rings */
 
-    --chart-1: 128 100% 54%;
-    --chart-2: 140 100% 62%;
-    --chart-3: 120 60% 50%;
+    --chart-1: 128 100% 54%; /* Neon Green */
+    --chart-2: 230 100% 60%; /* Neon Blue */
+    --chart-3: 0 100% 55%;   /* Neon Red */
     --chart-4: 150 70% 55%;
     --chart-5: 100 50% 60%;
 
@@ -74,9 +74,9 @@
     --input: 240 0% 15%;
     --ring: 128 100% 54%;
 
-    --chart-1: 128 100% 54%;
-    --chart-2: 140 100% 62%;
-    --chart-3: 120 60% 50%;
+    --chart-1: 128 100% 54%; /* Neon Green */
+    --chart-2: 230 100% 60%; /* Neon Blue */
+    --chart-3: 0 100% 55%;   /* Neon Red */
     --chart-4: 150 70% 55%;
     --chart-5: 100 50% 60%;
 
