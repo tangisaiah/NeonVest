@@ -6,7 +6,7 @@
  *
  * - generateInvestmentTips - A function that generates investment tips based on investment results.
  * - InvestmentTipsInput - The input type for the generateInvestmentTips function.
- * - InvestmentTipsOutput - The return type for the generateInvestmentTips function, which includes optional tips and an optional error message.
+ * - InvestmentTipsOutput - The return type for the generateInvestmentTips function, which includes optional tips (with title and description) and an optional error message.
  */
 
 import {ai} from '@/ai/genkit';
@@ -23,14 +23,20 @@ const InvestmentTipsInputSchema = z.object({
 });
 export type InvestmentTipsInput = z.infer<typeof InvestmentTipsInputSchema>;
 
+// Schema for individual tip object
+const TipSchema = z.object({
+  title: z.string().describe('The title of the investment tip.'),
+  description: z.string().describe('The detailed description of the investment tip.'),
+});
+
 // Schema for the data structure the LLM is expected to return
 const InvestmentTipsLLMOutputSchema = z.object({
-  tips: z.array(z.string()).describe('An array of personalized investment tips.'),
+  tips: z.array(TipSchema).max(3).describe('An array of up to 3 personalized investment tips, each with a title and description.'),
 });
 
 // Schema for the actual output of the flow, including potential errors
 const InvestmentTipsFlowOutputSchema = z.object({
-  tips: z.array(z.string()).optional().describe('An array of personalized investment tips, if successful.'),
+  tips: z.array(TipSchema).optional().describe('An array of personalized investment tips, if successful.'),
   error: z.string().optional().describe('An error message, if tips generation failed.'),
 });
 export type InvestmentTipsOutput = z.infer<typeof InvestmentTipsFlowOutputSchema>;
@@ -43,7 +49,13 @@ const prompt = ai.definePrompt({
   name: 'investmentTipsPrompt',
   input: {schema: InvestmentTipsInputSchema},
   output: {schema: InvestmentTipsLLMOutputSchema}, // LLM aims to produce this
-  prompt: `You are an expert financial advisor. Provide personalized investment tips based on the following investment calculation results. The response should be an array of tips.
+  prompt: `You are an expert financial advisor. Provide a maximum of 3 personalized investment tips based on the following investment calculation results. Each tip must have a 'title' and a 'description'.
+
+The response should be an array of tip objects, structured like this example:
+[
+  { "title": "Example Tip Title 1", "description": "Detailed description for example tip 1." },
+  { "title": "Example Tip Title 2", "description": "Detailed description for example tip 2." }
+]
 
 Initial Investment: {{{initialInvestment}}}
 Monthly Contribution: {{{monthlyContribution}}}

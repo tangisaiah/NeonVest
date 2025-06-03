@@ -31,6 +31,18 @@ const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 };
 
+const formatForDisplay = (value: number | undefined): string => {
+  if (value === undefined || value === null || isNaN(Number(value))) {
+    return '';
+  }
+  return Number(value).toLocaleString('en-US');
+};
+
+const parseInput = (inputValue: string): string => {
+  return inputValue.replace(/[^0-9]/g, ''); // Remove non-digits
+};
+
+
 interface ChartDisplayDataItem {
   name: string; // e.g., "Year 1"
   totalValue: number;
@@ -53,11 +65,15 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+interface AiTip {
+  title: string;
+  description: string;
+}
 
 export default function InvestmentCalculatorPage() {
   const [results, setResults] = useState<CalculationResults | null>(null);
   const [yearlyData, setYearlyData] = useState<YearlyData[]>([]);
-  const [aiTips, setAiTips] = useState<string[]>([]);
+  const [aiTips, setAiTips] = useState<AiTip[]>([]);
   const [isLoadingTips, setIsLoadingTips] = useState(false);
   const [formInputsForAI, setFormInputsForAI] = useState<InvestmentFormData | null>(null);
   const [chartDisplayData, setChartDisplayData] = useState<ChartDisplayDataItem[]>([]);
@@ -84,7 +100,7 @@ export default function InvestmentCalculatorPage() {
     let totalContributionsOverall = initialInvestment;
 
     for (let year = 1; year <= investmentDuration; year++) {
-      const startingBalanceForYear = currentBalance; // Retained for data integrity, removed from display
+      const startingBalanceForYear = currentBalance;
       let totalInterestThisYear = 0;
       let totalContributionsThisYear = 0;
 
@@ -215,7 +231,16 @@ export default function InvestmentCalculatorPage() {
                     <FormItem>
                       <FormLabel className="flex items-center text-base"><DollarSign className="mr-2 h-4 w-4 text-primary" />Initial Investment ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="any" placeholder="e.g., 1000" {...field} className="text-base"/>
+                        <Input
+                          type="text"
+                          placeholder="e.g., 1,000"
+                          value={formatForDisplay(field.value)}
+                          onChange={(e) => field.onChange(parseInput(e.target.value))}
+                          onBlur={field.onBlur}
+                          name={field.name}
+                          ref={field.ref}
+                          className="text-base"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -228,7 +253,16 @@ export default function InvestmentCalculatorPage() {
                     <FormItem>
                       <FormLabel className="flex items-center text-base"><DollarSign className="mr-2 h-4 w-4 text-primary" />Monthly Contribution ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="any" placeholder="e.g., 100" {...field} className="text-base"/>
+                        <Input
+                          type="text"
+                          placeholder="e.g., 100"
+                          value={formatForDisplay(field.value)}
+                          onChange={(e) => field.onChange(parseInput(e.target.value))}
+                          onBlur={field.onBlur}
+                          name={field.name}
+                          ref={field.ref}
+                          className="text-base"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -416,16 +450,23 @@ export default function InvestmentCalculatorPage() {
                      <p className="text-muted-foreground">Generating personalized tips...</p>
                    </div>
                  ) : (
+                  <>
                    <Accordion type="single" collapsible className="w-full">
                      {aiTips.map((tip, index) => (
                        <AccordionItem value={`item-${index}`} key={index}>
-                         <AccordionTrigger className="text-left hover:text-accent transition-colors">Tip {index + 1}</AccordionTrigger>
+                         <AccordionTrigger className="text-left hover:text-accent transition-colors text-lg">
+                           Tip {index + 1}: {tip.title}
+                         </AccordionTrigger>
                          <AccordionContent className="text-base">
-                           {tip}
+                           {tip.description}
                          </AccordionContent>
                        </AccordionItem>
                      ))}
                    </Accordion>
+                    <p className="text-xs text-muted-foreground mt-6 text-center">
+                      Disclaimer: AI-generated tips are for informational purposes only and should not be considered financial advice. Consult with a qualified financial advisor before making investment decisions.
+                    </p>
+                  </>
                  )}
                </CardContent>
              </Card>
@@ -435,4 +476,3 @@ export default function InvestmentCalculatorPage() {
     </div>
   );
 }
-
