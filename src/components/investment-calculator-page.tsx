@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { InvestmentFormData, CalculationResults, YearlyData } from '@/types';
@@ -11,13 +12,47 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { generateInvestmentTips, type InvestmentTipsInput } from '@/ai/flows/generate-investment-tips';
-import { DollarSign, Percent, CalendarDays, TrendingUp, Lightbulb, Loader2 } from 'lucide-react';
+import { DollarSign, Percent, CalendarDays, TrendingUp, Lightbulb, Loader2, AreaChart } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
+
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart";
+import type { ChartConfig } from "@/components/ui/chart";
+import { ComposedChart, CartesianGrid, XAxis, YAxis, Line as RechartsLine, Legend as RechartsLegend, Tooltip as RechartsTooltip } from 'recharts';
+
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 };
+
+interface ChartDisplayDataItem {
+  name: string; // e.g., "Year 1"
+  totalValue: number;
+  amountInvested: number;
+  interestAccumulated: number;
+}
+
+const chartConfig = {
+  totalValue: {
+    label: "Total Value",
+    color: "hsl(var(--chart-1))",
+  },
+  amountInvested: {
+    label: "Amount Invested",
+    color: "hsl(var(--chart-2))",
+  },
+  interestAccumulated: {
+    label: "Interest Accumulated",
+    color: "hsl(var(--chart-3))",
+  },
+} satisfies ChartConfig;
+
 
 export default function InvestmentCalculatorPage() {
   const [results, setResults] = useState<CalculationResults | null>(null);
@@ -25,6 +60,7 @@ export default function InvestmentCalculatorPage() {
   const [aiTips, setAiTips] = useState<string[]>([]);
   const [isLoadingTips, setIsLoadingTips] = useState(false);
   const [formInputsForAI, setFormInputsForAI] = useState<InvestmentFormData | null>(null);
+  const [chartDisplayData, setChartDisplayData] = useState<ChartDisplayDataItem[]>([]);
 
   const { toast } = useToast();
 
@@ -65,7 +101,7 @@ export default function InvestmentCalculatorPage() {
         year,
         startingBalance: startingBalanceForYear,
         interestEarned: totalInterestThisYear,
-        contributions: totalContributionsThisYear, // This is just monthly * 12 for the year
+        contributions: totalContributionsThisYear,
         endingBalance: currentBalance,
       });
     }
@@ -79,8 +115,8 @@ export default function InvestmentCalculatorPage() {
       totalContributions: totalContributionsOverall,
     });
     setYearlyData(newYearlyData);
-    setAiTips([]); // Clear previous tips
-    setFormInputsForAI(data); // Store form inputs for AI
+    setAiTips([]); 
+    setFormInputsForAI(data); 
   };
 
   useEffect(() => {
@@ -114,7 +150,27 @@ export default function InvestmentCalculatorPage() {
       fetchAITips();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results, formInputsForAI]); // Trigger AI tips when results and formInputsForAI are set
+  }, [results, formInputsForAI]);
+
+  useEffect(() => {
+    if (yearlyData.length > 0 && formInputsForAI) {
+      let cumulativeAmountInvested = formInputsForAI.initialInvestment;
+
+      const newChartData = yearlyData.map(data => {
+        cumulativeAmountInvested += data.contributions; // Annual contributions for this year
+
+        return {
+          name: `Year ${data.year}`,
+          totalValue: data.endingBalance,
+          amountInvested: cumulativeAmountInvested,
+          interestAccumulated: data.endingBalance - cumulativeAmountInvested,
+        };
+      });
+      setChartDisplayData(newChartData);
+    } else {
+      setChartDisplayData([]);
+    }
+  }, [yearlyData, formInputsForAI]);
 
   return (
     <div className="container mx-auto p-4 md:p-8 flex flex-col items-center">
@@ -255,6 +311,71 @@ export default function InvestmentCalculatorPage() {
         </Card>
       )}
 
+      {chartDisplayData.length > 0 && (
+        <Card className="w-full max-w-4xl mt-8 shadow-2xl shadow-primary/20">
+          <CardHeader>
+            <CardTitle className="text-2xl font-headline text-primary flex items-center">
+              <AreaChart className="mr-2 h-7 w-7" /> Investment Growth Chart
+            </CardTitle>
+            <CardDescription>Visual representation of your investment growth over time.</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <ChartContainer config={chartConfig} className="min-h-[300px] w-full aspect-video">
+              <ComposedChart data={chartDisplayData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="name"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  padding={{ left: 10, right: 10 }}
+                />
+                <YAxis
+                  tickFormatter={(value) => formatCurrency(value)}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  width={90}
+                />
+                <RechartsTooltip
+                  cursor={{ strokeDasharray: '3 3' }}
+                  content={<ChartTooltipContent
+                    formatter={(value) => formatCurrency(value as number)}
+                    labelClassName="font-bold"
+                    indicator="dot"
+                   />}
+                />
+                <RechartsLegend content={<ChartLegendContent />} />
+                <RechartsLine
+                  dataKey="amountInvested"
+                  type="monotone"
+                  stroke="var(--color-amountInvested)"
+                  strokeWidth={2}
+                  dot={false}
+                  name={chartConfig.amountInvested.label}
+                />
+                <RechartsLine
+                  dataKey="interestAccumulated"
+                  type="monotone"
+                  stroke="var(--color-interestAccumulated)"
+                  strokeWidth={2}
+                  dot={false}
+                  name={chartConfig.interestAccumulated.label}
+                />
+                <RechartsLine
+                  dataKey="totalValue"
+                  type="monotone"
+                  stroke="var(--color-totalValue)"
+                  strokeWidth={3}
+                  dot={{ r: 4, fillOpacity: 1 }}
+                  name={chartConfig.totalValue.label}
+                />
+              </ComposedChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      )}
+
       {(isLoadingTips || aiTips.length > 0) && results && (
          <Card className="w-full max-w-4xl mt-8 shadow-2xl shadow-primary/20">
            <CardHeader>
@@ -286,3 +407,4 @@ export default function InvestmentCalculatorPage() {
     </div>
   );
 }
+
