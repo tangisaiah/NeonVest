@@ -84,7 +84,7 @@ export default function InvestmentCalculatorPage() {
     let totalContributionsOverall = initialInvestment;
 
     for (let year = 1; year <= investmentDuration; year++) {
-      const startingBalanceForYear = currentBalance;
+      const startingBalanceForYear = currentBalance; // Retained for data integrity, removed from display
       let totalInterestThisYear = 0;
       let totalContributionsThisYear = 0;
 
@@ -99,7 +99,7 @@ export default function InvestmentCalculatorPage() {
       }
       newYearlyData.push({
         year,
-        startingBalance: startingBalanceForYear, // Retained for data integrity, removed from display
+        startingBalance: startingBalanceForYear,
         interestEarned: totalInterestThisYear,
         contributions: totalContributionsThisYear,
         endingBalance: currentBalance,
@@ -136,7 +136,7 @@ export default function InvestmentCalculatorPage() {
           const tipsResult: InvestmentTipsOutput = await generateInvestmentTips(aiInput);
 
           if (tipsResult.error) {
-            console.error("AI tips generation failed with error message:", tipsResult.error);
+            console.warn("AI tips generation failed with error message:", tipsResult.error);
             toast({
               title: "AI Tips Error",
               description: tipsResult.error,
