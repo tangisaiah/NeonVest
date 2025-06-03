@@ -166,7 +166,7 @@ export default function InvestmentCalculatorPage() {
 
   const onSubmit: SubmitHandler<InvestmentFormData> = (data) => {
     let { initialInvestment, monthlyContribution, interestRate, investmentDuration, targetFutureValue } = data;
-    let calculatedMonthlyContribution: number | undefined = monthlyContribution; // Use provided or keep as is
+    let calculatedMonthlyContribution: number | undefined = monthlyContribution; 
     let calculatedInterestRate: number | undefined = interestRate;
     let calculatedInvestmentDuration: number | undefined = investmentDuration;
     let finalFutureValue: number | undefined = undefined; 
@@ -249,7 +249,7 @@ export default function InvestmentCalculatorPage() {
         }
         const N = investmentDuration * 12; 
         let low_i = 0; 
-        let high_i = 0.5; // Max annual rate of 50% for search, results in monthly rate
+        let high_i = 0.5; 
         let mid_i;
         let fv_at_mid_i;
         let iterations = 0;
@@ -261,8 +261,8 @@ export default function InvestmentCalculatorPage() {
             calculatedInterestRate = 0;
         } else {
             while (iterations < 100) { 
-                mid_i = (low_i + high_i) / 2; // This is a monthly rate during iteration
-                if (mid_i < 1e-9) { // effectively zero interest
+                mid_i = (low_i + high_i) / 2; 
+                if (mid_i < 1e-9) { 
                      fv_at_mid_i = initialInvestment + monthlyContribution * N;
                 } else {
                     fv_at_mid_i = initialInvestment * Math.pow(1 + mid_i, N) + monthlyContribution * (Math.pow(1 + mid_i, N) - 1) / mid_i;
@@ -279,7 +279,7 @@ export default function InvestmentCalculatorPage() {
                 }
                 iterations++;
             }
-             calculatedInterestRate = mid_i * 12 * 100; // Convert monthly decimal to annual percentage
+             calculatedInterestRate = mid_i! * 12 * 100; 
         }
 
 
@@ -301,7 +301,6 @@ export default function InvestmentCalculatorPage() {
         return;
       }
       
-      // Ensure all parameters for projection are numbers
       const projInitial = Number(initialInvestment);
       const projMonthly = Number(calculatedMonthlyContribution);
       const projRate = Number(calculatedInterestRate);
@@ -406,7 +405,7 @@ export default function InvestmentCalculatorPage() {
              });
           }
         } catch (error) { 
-          console.error("Network or client-side error fetching AI tips:", error);
+          console.warn("Network or client-side error fetching AI tips:", error);
           toast({
             title: "Error",
             description: "Could not connect to the AI service. Please check your connection and try again.",
@@ -441,26 +440,6 @@ export default function InvestmentCalculatorPage() {
     }
   }, [yearlyData, formInputsForAI]); 
 
-
-  const isFieldDisabled = (fieldName: keyof InvestmentFormData): boolean => {
-    if (fieldName === 'targetFutureValue') {
-        return calculationMode === 'futureValue';
-    }
-
-    if (calculationMode === 'calculateMonthlyContribution' && fieldName === 'monthlyContribution') {
-        return true;
-    }
-    if (calculationMode === 'calculateInterestRate' && fieldName === 'interestRate') {
-        return true;
-    }
-    if (calculationMode === 'calculateInvestmentDuration' && fieldName === 'investmentDuration') {
-        return true;
-    }
-    
-    return false;
-  };
-
-
   return (
     <div className="container mx-auto p-4 md:p-8 flex flex-col items-center">
       <header className="mb-10 text-center">
@@ -476,7 +455,7 @@ export default function InvestmentCalculatorPage() {
                 <CardTitle className="text-2xl font-headline text-primary flex items-center">
                   <TrendingUp className="mr-2 h-7 w-7" /> Investment Inputs
                 </CardTitle>
-                <CardDescription>Select a tab to choose what to calculate. The highlighted field will be determined.</CardDescription>
+                <CardDescription>Select a tab to choose what to calculate. Fill in the other fields.</CardDescription>
               </CardHeader>
               <CardContent>
                  <Tabs
@@ -517,7 +496,6 @@ export default function InvestmentCalculatorPage() {
                               name={field.name}
                               ref={field.ref}
                               className="text-base"
-                              disabled={isFieldDisabled('targetFutureValue')}
                             />
                           </FormControl>
                           <FormMessage />
@@ -542,81 +520,83 @@ export default function InvestmentCalculatorPage() {
                             name={field.name}
                             ref={field.ref}
                             className="text-base"
-                            disabled={isFieldDisabled('initialInvestment')}
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="monthlyContribution"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className={`flex items-center text-base ${calculationMode === 'calculateMonthlyContribution' ? 'text-primary font-semibold' : ''}`}>
-                          <DollarSign className="mr-2 h-4 w-4 text-primary" />
-                          {calculationMode === 'calculateMonthlyContribution' ? 'Calculated Monthly Contribution ($)' : 'Monthly Contribution ($)'}
-                        </FormLabel>
-                        <FormControl>
-                           <Input
-                            type="text" 
-                            placeholder="e.g., 100"
-                            value={field.value === undefined || field.value === null || field.value === '' ? '' : formatForDisplay(Number(field.value))}
-                             onChange={(e) => field.onChange(parseInput(e.target.value))}
-                            onBlur={field.onBlur}
-                            name={field.name}
-                            ref={field.ref}
-                            className={`text-base ${calculationMode === 'calculateMonthlyContribution' ? 'border-primary ring-primary' : ''}`}
-                            disabled={isFieldDisabled('monthlyContribution')}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="interestRate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className={`flex items-center text-base ${calculationMode === 'calculateInterestRate' ? 'text-primary font-semibold' : ''}`}>
-                          <Percent className="mr-2 h-4 w-4 text-primary" />
-                          {calculationMode === 'calculateInterestRate' ? 'Calculated Annual Interest Rate (%)' : 'Annual Interest Rate (%)'}
+                  {calculationMode !== 'calculateMonthlyContribution' && (
+                    <FormField
+                      control={form.control}
+                      name="monthlyContribution"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center text-base">
+                            <DollarSign className="mr-2 h-4 w-4 text-primary" />
+                            Monthly Contribution ($)
                           </FormLabel>
-                        <FormControl>
-                          <Input type="number" step="any" placeholder="e.g., 7" {...field} 
-                            onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} 
+                          <FormControl>
+                            <Input
+                              type="text" 
+                              placeholder="e.g., 100"
+                              value={field.value === undefined || field.value === null || field.value === '' ? '' : formatForDisplay(Number(field.value))}
+                              onChange={(e) => field.onChange(parseInput(e.target.value))}
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              ref={field.ref}
+                              className="text-base"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  {calculationMode !== 'calculateInterestRate' && (
+                    <FormField
+                      control={form.control}
+                      name="interestRate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center text-base">
+                            <Percent className="mr-2 h-4 w-4 text-primary" />
+                            Annual Interest Rate (%)
+                          </FormLabel>
+                          <FormControl>
+                            <Input type="number" step="any" placeholder="e.g., 7" {...field} 
+                              onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} 
+                              value={field.value === undefined ? '' : field.value}
+                              className="text-base"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  {calculationMode !== 'calculateInvestmentDuration' && (
+                    <FormField
+                      control={form.control}
+                      name="investmentDuration"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center text-base">
+                            <CalendarDays className="mr-2 h-4 w-4 text-primary" />
+                            Investment Duration (Years)
+                          </FormLabel>
+                          <FormControl>
+                            <Input type="number" step="any" placeholder="e.g., 10" {...field} 
+                            onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
                             value={field.value === undefined ? '' : field.value}
-                            className={`text-base ${calculationMode === 'calculateInterestRate' ? 'border-primary ring-primary' : ''}`}
-                            disabled={isFieldDisabled('interestRate')}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="investmentDuration"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className={`flex items-center text-base ${calculationMode === 'calculateInvestmentDuration' ? 'text-primary font-semibold' : ''}`}>
-                          <CalendarDays className="mr-2 h-4 w-4 text-primary" />
-                          {calculationMode === 'calculateInvestmentDuration' ? 'Calculated Investment Duration (Years)' : 'Investment Duration (Years)'}
-                          </FormLabel>
-                        <FormControl>
-                          <Input type="number" step="any" placeholder="e.g., 10" {...field} 
-                           onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                           value={field.value === undefined ? '' : field.value}
-                           className={`text-base ${calculationMode === 'calculateInvestmentDuration' ? 'border-primary ring-primary' : ''}`}
-                           disabled={isFieldDisabled('investmentDuration')}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                            className="text-base"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   <Button type="submit" className="w-full text-lg py-6 bg-primary hover:bg-accent text-primary-foreground hover:text-accent-foreground transition-all duration-300 ease-in-out transform hover:scale-105">
                     Calculate
                   </Button>
