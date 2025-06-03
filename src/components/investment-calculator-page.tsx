@@ -35,11 +35,20 @@ const formatForDisplay = (value: number | undefined): string => {
   if (value === undefined || value === null || isNaN(Number(value))) {
     return '';
   }
-  return Number(value).toLocaleString('en-US');
+  // Check if it's a whole number or has decimals
+  const numValue = Number(value);
+  if (numValue % 1 === 0) { // Whole number
+    return numValue.toLocaleString('en-US');
+  }
+  // For numbers with decimals, toLocaleString handles it, but we ensure it's a number first
+  return numValue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 20 });
 };
 
-const parseInput = (inputValue: string): string => {
-  return inputValue.replace(/[^0-9]/g, ''); // Remove non-digits
+const parseInput = (inputValue: string): number | string => {
+  const cleaned = inputValue.replace(/[^0-9.]/g, ''); // Allow digits and a single decimal
+  if (cleaned === '' || cleaned === '.') return ''; // Return empty if only a dot or empty
+  const numberValue = parseFloat(cleaned);
+  return isNaN(numberValue) ? '' : numberValue;
 };
 
 
@@ -64,6 +73,9 @@ const chartConfig = {
     color: "hsl(0, 100%, 50%)", // Neon Red
   },
 } satisfies ChartConfig;
+
+const tooltipOrder: (keyof ChartDisplayDataItem)[] = ["totalValue", "amountInvested", "interestAccumulated"];
+
 
 interface AiTip {
   title: string;
@@ -188,15 +200,18 @@ export default function InvestmentCalculatorPage() {
   useEffect(() => {
     if (yearlyData.length > 0 && formInputsForAI) {
       let cumulativeAmountInvested = formInputsForAI.initialInvestment;
+      let cumulativeInterest = 0;
 
       const newChartData = yearlyData.map(data => {
         cumulativeAmountInvested += data.contributions; 
+        cumulativeInterest += data.interestEarned;
 
         return {
           name: `Year ${data.year}`,
           totalValue: data.endingBalance,
-          amountInvested: cumulativeAmountInvested,
-          interestAccumulated: data.endingBalance - cumulativeAmountInvested,
+          // For the chart, "amountInvested" should be the total principal paid up to that year
+          amountInvested: formInputsForAI.initialInvestment + yearlyData.slice(0, data.year).reduce((acc, curr) => acc + curr.contributions, 0),
+          interestAccumulated: data.endingBalance - (formInputsForAI.initialInvestment + yearlyData.slice(0, data.year).reduce((acc, curr) => acc + curr.contributions, 0)),
         };
       });
       setChartDisplayData(newChartData);
@@ -204,6 +219,7 @@ export default function InvestmentCalculatorPage() {
       setChartDisplayData([]);
     }
   }, [yearlyData, formInputsForAI]);
+
 
   return (
     <div className="container mx-auto p-4 md:p-8 flex flex-col items-center">
@@ -234,8 +250,11 @@ export default function InvestmentCalculatorPage() {
                         <Input
                           type="text"
                           placeholder="e.g., 1,000"
-                          value={formatForDisplay(field.value)}
-                          onChange={(e) => field.onChange(parseInput(e.target.value))}
+                          value={field.value === undefined || field.value === null || field.value === '' ? '' : formatForDisplay(Number(field.value))}
+                          onChange={(e) => {
+                            const parsed = parseInput(e.target.value);
+                            field.onChange(parsed === '' ? undefined : parsed);
+                          }}
                           onBlur={field.onBlur}
                           name={field.name}
                           ref={field.ref}
@@ -253,11 +272,14 @@ export default function InvestmentCalculatorPage() {
                     <FormItem>
                       <FormLabel className="flex items-center text-base"><DollarSign className="mr-2 h-4 w-4 text-primary" />Monthly Contribution ($)</FormLabel>
                       <FormControl>
-                        <Input
+                         <Input
                           type="text"
                           placeholder="e.g., 100"
-                          value={formatForDisplay(field.value)}
-                          onChange={(e) => field.onChange(parseInput(e.target.value))}
+                          value={field.value === undefined || field.value === null || field.value === '' ? '' : formatForDisplay(Number(field.value))}
+                          onChange={(e) => {
+                            const parsed = parseInput(e.target.value);
+                            field.onChange(parsed === '' ? undefined : parsed);
+                          }}
                           onBlur={field.onBlur}
                           name={field.name}
                           ref={field.ref}
@@ -275,7 +297,7 @@ export default function InvestmentCalculatorPage() {
                     <FormItem>
                       <FormLabel className="flex items-center text-base"><Percent className="mr-2 h-4 w-4 text-primary" />Annual Interest Rate (%)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="any" placeholder="e.g., 7" {...field} className="text-base"/>
+                        <Input type="number" step="any" placeholder="e.g., 7" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} className="text-base"/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -288,7 +310,7 @@ export default function InvestmentCalculatorPage() {
                     <FormItem>
                       <FormLabel className="flex items-center text-base"><CalendarDays className="mr-2 h-4 w-4 text-primary" />Investment Duration (Years)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="1" placeholder="e.g., 10" {...field} className="text-base"/>
+                        <Input type="number" step="1" placeholder="e.g., 10" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))}  className="text-base"/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -335,6 +357,10 @@ export default function InvestmentCalculatorPage() {
                     />
                     <RechartsTooltip
                       cursor={{ strokeDasharray: '3 3' }}
+                      itemSorter={(item) => {
+                        const index = tooltipOrder.indexOf(item.dataKey as keyof ChartDisplayDataItem);
+                        return index === -1 ? Infinity : index;
+                      }}
                       content={<ChartTooltipContent
                         formatter={(value) => formatCurrency(value as number)}
                         labelClassName="font-bold"
@@ -476,3 +502,4 @@ export default function InvestmentCalculatorPage() {
     </div>
   );
 }
+
