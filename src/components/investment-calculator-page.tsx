@@ -86,6 +86,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+
 const tooltipLineOrder: (keyof ChartDisplayDataItem)[] = ["totalValue", "amountInvested", "interestAccumulated"];
 
 
@@ -99,7 +100,7 @@ const defaultFormValues: InvestmentFormData = {
   monthlyContribution: 100,
   interestRate: 7,
   investmentDuration: 10,
-  targetFutureValue: 100000, // Default for when it's an input
+  targetFutureValue: 100000,
   calculationMode: 'futureValue',
 };
 
@@ -116,57 +117,36 @@ export default function InvestmentCalculatorPage() {
     defaultValues: defaultFormValues,
   });
 
-  const [calculationMode, setCalculationMode] = useState<CalculationMode>(
-    form.getValues('calculationMode') || 'futureValue'
-  );
+  const [calculationMode, setCalculationMode] = useState<CalculationMode>(defaultFormValues.calculationMode);
 
   const { toast } = useToast();
 
   const handleTabChange = (newMode: CalculationMode) => {
     console.log("[Tabs onValueChange] Tab changed to:", newMode);
     setCalculationMode(newMode);
-    form.setValue('calculationMode', newMode, { shouldValidate: false }); // No need to validate here, will do at end
     setResults(null);
     setYearlyData([]);
     setAiTips([]);
     setFormInputsForAI(null);
+    setChartDisplayData([]);
 
-    const optionalFields: (keyof InvestmentFormData)[] = ['monthlyContribution', 'interestRate', 'investmentDuration', 'targetFutureValue'];
-    optionalFields.forEach(field => form.unregister(field));
+    form.reset(defaultFormValues); // Reset all fields to their base defaults
+    form.setValue('calculationMode', newMode, { shouldValidate: false }); // Set the new mode
 
-
-    if (newMode !== 'futureValue') {
-      form.resetField('targetFutureValue', {
-        defaultValue: form.getValues('targetFutureValue') ?? defaultFormValues.targetFutureValue,
-      });
-    } else {
-       form.resetField('targetFutureValue', {defaultValue: undefined});
-    }
-
-    if (newMode !== 'calculateMonthlyContribution') {
-      form.resetField('monthlyContribution', {
-        defaultValue: form.getValues('monthlyContribution') ?? defaultFormValues.monthlyContribution,
-      });
-    } else {
-       form.resetField('monthlyContribution', {defaultValue: undefined});
+    // Explicitly set the field being calculated to undefined, so it doesn't show its default value
+    if (newMode === 'calculateMonthlyContribution') {
+      form.setValue('monthlyContribution', undefined);
+    } else if (newMode === 'calculateInterestRate') {
+      form.setValue('interestRate', undefined);
+    } else if (newMode === 'calculateInvestmentDuration') {
+      form.setValue('investmentDuration', undefined);
+    } else if (newMode === 'futureValue') {
+      // targetFutureValue is hidden in this mode, ensure its form value is undefined
+      form.setValue('targetFutureValue', undefined);
     }
     
-    if (newMode !== 'calculateInterestRate') {
-      form.resetField('interestRate', {
-        defaultValue: form.getValues('interestRate') ?? defaultFormValues.interestRate,
-      });
-    } else {
-       form.resetField('interestRate', {defaultValue: undefined});
-    }
-
-    if (newMode !== 'calculateInvestmentDuration') {
-       form.resetField('investmentDuration', {
-        defaultValue: form.getValues('investmentDuration') ?? defaultFormValues.investmentDuration,
-       });
-    } else {
-        form.resetField('investmentDuration', {defaultValue: undefined});
-    }
-    form.register('initialInvestment');
+    // Trigger validation with the new state of the form
+    // This will also re-render the form with correct conditional fields and default values
     form.trigger(); 
   };
 
@@ -243,9 +223,9 @@ export default function InvestmentCalculatorPage() {
   };
 
  const onSubmit: SubmitHandler<InvestmentFormData> = (data) => {
-    const currentCalculationModeFromForm = data.calculationMode || calculationMode; // Use data.calculationMode first
+    const currentCalculationModeFromForm = data.calculationMode || calculationMode;
     console.log("FORM SUBMITTED, raw data:", JSON.parse(JSON.stringify(data)), "Mode from data:", currentCalculationModeFromForm);
-
+    
     let formInitialInvestment = parseNumericInput(data.initialInvestment);
     let formMonthlyContribution = parseNumericInput(data.monthlyContribution);
     let formInterestRate = parseNumericInput(data.interestRate);
@@ -443,7 +423,7 @@ export default function InvestmentCalculatorPage() {
                                     projMonthlyContribution * (Math.pow(1 + mid_r_monthly_decimal, N) - 1) / mid_r_monthly_decimal;
                      }
 
-                     if (Math.abs(fv_at_mid_r - projTargetFutureValue) < tolerance_fv_diff * 100) { // Loosen tolerance for final check if not converged
+                     if (Math.abs(fv_at_mid_r - projTargetFutureValue) < tolerance_fv_diff * 100) { 
                         calculatedAnnualIRDecimal = mid_r_monthly_decimal * 12;
                      } else {
                         toast({title: "Calculation Alert", description: "Could not determine a reasonable interest rate. Target might be unachievable or parameters are extreme.", variant: "destructive"});
@@ -492,8 +472,7 @@ export default function InvestmentCalculatorPage() {
         finalTotalInterest = projection.totalInterest;
         finalTotalContributions = projection.totalContributions;
         
-        // Update form fields for calculated values AFTER all calculations
-        // Only set if a value was actually calculated for that field in this mode
+        
         if (currentCalculationModeFromForm === 'calculateMonthlyContribution' && resultsCalculatedMonthlyContribution !== undefined) {
             form.setValue('monthlyContribution', resultsCalculatedMonthlyContribution, { shouldValidate: false });
         }
@@ -528,7 +507,7 @@ export default function InvestmentCalculatorPage() {
             monthlyContribution: projMonthlyContribution,
             interestRate: projInterestRate,
             investmentDuration: projInvestmentDuration,
-            targetFutureValue: (currentCalculationModeFromForm !== 'futureValue') ? projTargetFutureValue : undefined,
+            targetFutureValue: (currentCalculationModeFromForm !== 'futureValue' && projTargetFutureValue !== undefined) ? projTargetFutureValue : undefined,
             calculationMode: currentCalculationModeFromForm
         };
         console.log("Setting formInputsForAI state with:", JSON.parse(JSON.stringify(formInputsForAICopy)));
@@ -618,22 +597,17 @@ export default function InvestmentCalculatorPage() {
         const baseContributions = formInputsForAI.initialInvestment;
         
         const newChartData = yearlyData.map(data => {
-          // Calculate cumulative contributions up to the *beginning* of this year's period for 'amountInvested'
           const contributionsBeforeThisYear = yearlyData
             .slice(0, yearlyData.findIndex(y => y.year === data.year))
             .reduce((acc, curr) => acc + (curr.contributions || 0), 0);
           
-          const amountInvestedAtYearStart = baseContributions + contributionsBeforeThisYear;
-
-          // For 'amountInvested' at year end, include this year's contributions
-          const amountInvestedAtYearEnd = amountInvestedAtYearStart + (data.contributions || 0);
-          
+          const amountInvestedAtYearEnd = baseContributions + contributionsBeforeThisYear + (data.contributions || 0);
           const interestAccumulatedUpToThisYearEnd = data.endingBalance - amountInvestedAtYearEnd;
 
         return {
           name: `Year ${Math.floor(data.year)}`, 
           totalValue: data.endingBalance,
-          amountInvested: amountInvestedAtYearEnd, // This is cumulative contributions including initial
+          amountInvested: amountInvestedAtYearEnd, 
           interestAccumulated: interestAccumulatedUpToThisYearEnd < 0 ? 0 : interestAccumulatedUpToThisYearEnd, 
         };
       });
@@ -659,7 +633,7 @@ export default function InvestmentCalculatorPage() {
                 <CardTitle className="text-2xl font-headline text-primary flex items-center">
                   <TrendingUp className="mr-2 h-7 w-7" /> Investment Inputs
                 </CardTitle>
-                <CardDescription>Select a tab to choose what to calculate. Fill in the other fields to determine the highlighted value.</CardDescription>
+                <CardDescription>Select a tab to choose what to calculate. Fill in the other fields to determine the highlighted value. Default values are provided for your convenience.</CardDescription>
               </CardHeader>
               <CardContent>
                  <Tabs
