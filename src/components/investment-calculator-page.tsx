@@ -199,17 +199,10 @@ export default function InvestmentCalculatorPage() {
 
   useEffect(() => {
     if (yearlyData.length > 0 && formInputsForAI) {
-      let cumulativeAmountInvested = formInputsForAI.initialInvestment;
-      let cumulativeInterest = 0;
-
       const newChartData = yearlyData.map(data => {
-        cumulativeAmountInvested += data.contributions; 
-        cumulativeInterest += data.interestEarned;
-
         return {
           name: `Year ${data.year}`,
           totalValue: data.endingBalance,
-          // For the chart, "amountInvested" should be the total principal paid up to that year
           amountInvested: formInputsForAI.initialInvestment + yearlyData.slice(0, data.year).reduce((acc, curr) => acc + curr.contributions, 0),
           interestAccumulated: data.endingBalance - (formInputsForAI.initialInvestment + yearlyData.slice(0, data.year).reduce((acc, curr) => acc + curr.contributions, 0)),
         };
@@ -368,7 +361,18 @@ export default function InvestmentCalculatorPage() {
                        />}
                     />
                     <RechartsLegend content={<ChartLegendContent />} />
+                    {/* Lines reordered for desired tooltip order if itemSorter is ignored */}
                     <RechartsLine
+                      key="totalValue"
+                      dataKey="totalValue"
+                      type="monotone"
+                      stroke="var(--color-totalValue)"
+                      strokeWidth={3}
+                      dot={{ r: 4, fillOpacity: 1 }}
+                      name={chartConfig.totalValue.label}
+                    />
+                    <RechartsLine
+                      key="amountInvested"
                       dataKey="amountInvested"
                       type="monotone"
                       stroke="var(--color-amountInvested)"
@@ -377,20 +381,13 @@ export default function InvestmentCalculatorPage() {
                       name={chartConfig.amountInvested.label}
                     />
                     <RechartsLine
+                      key="interestAccumulated"
                       dataKey="interestAccumulated"
                       type="monotone"
                       stroke="var(--color-interestAccumulated)"
                       strokeWidth={2}
                       dot={false}
                       name={chartConfig.interestAccumulated.label}
-                    />
-                    <RechartsLine
-                      dataKey="totalValue"
-                      type="monotone"
-                      stroke="var(--color-totalValue)"
-                      strokeWidth={3}
-                      dot={{ r: 4, fillOpacity: 1 }}
-                      name={chartConfig.totalValue.label}
                     />
                   </ComposedChart>
                 </ChartContainer>
