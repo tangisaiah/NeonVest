@@ -74,15 +74,15 @@ interface ChartDisplayDataItem {
 const chartConfig = {
   totalValue: {
     label: "Total Value",
-    color: "hsl(var(--chart-1))",
+    color: "hsl(var(--chart-1))", // Neon Green
   },
   amountInvested: {
     label: "Amount Invested",
-    color: "hsl(var(--chart-2))", // Changed for better distinction
+    color: "hsl(var(--chart-4))", // Green-Cyan (blue-ish)
   },
   interestAccumulated: {
     label: "Interest Accumulated",
-    color: "hsl(var(--chart-3))", // Changed for better distinction
+    color: "hsl(var(--chart-2))", // Brighter Green
   },
 } satisfies ChartConfig;
 
@@ -94,6 +94,15 @@ interface AiTip {
   description: string;
 }
 
+const defaultFormValues: InvestmentFormData = {
+  initialInvestment: 1000,
+  monthlyContribution: 100,
+  interestRate: 7,
+  investmentDuration: 10,
+  targetFutureValue: 100000, // Default for when it's an input
+  calculationMode: 'futureValue',
+};
+
 export default function InvestmentCalculatorPage() {
   const [results, setResults] = useState<CalculationResults | null>(null);
   const [yearlyData, setYearlyData] = useState<YearlyData[]>([]);
@@ -104,14 +113,7 @@ export default function InvestmentCalculatorPage() {
   
   const form = useForm<InvestmentFormData>({
     resolver: zodResolver(InvestmentFormSchema),
-    defaultValues: {
-      initialInvestment: 1000,
-      monthlyContribution: 100,
-      interestRate: 7,
-      investmentDuration: 10,
-      targetFutureValue: undefined, // Default to undefined
-      calculationMode: 'futureValue',
-    },
+    defaultValues: defaultFormValues,
   });
 
   const [calculationMode, setCalculationMode] = useState<CalculationMode>(
@@ -123,45 +125,49 @@ export default function InvestmentCalculatorPage() {
   const handleTabChange = (newMode: CalculationMode) => {
     console.log("[Tabs onValueChange] Tab changed to:", newMode);
     setCalculationMode(newMode);
-    form.setValue('calculationMode', newMode, { shouldValidate: true });
+    form.setValue('calculationMode', newMode, { shouldValidate: false }); // No need to validate here, will do at end
     setResults(null);
     setYearlyData([]);
     setAiTips([]);
     setFormInputsForAI(null);
 
-    // Unregister fields that will be hidden
-    const allOptionalFields: (keyof InvestmentFormData)[] = ['monthlyContribution', 'interestRate', 'investmentDuration', 'targetFutureValue'];
-    allOptionalFields.forEach(field => form.unregister(field));
+    const optionalFields: (keyof InvestmentFormData)[] = ['monthlyContribution', 'interestRate', 'investmentDuration', 'targetFutureValue'];
+    optionalFields.forEach(field => form.unregister(field));
 
 
-    // Reset specific fields to ensure they are undefined if hidden, then re-register if visible
-    // This helps ensure Zod optional validation works correctly
     if (newMode !== 'futureValue') {
-      form.resetField('targetFutureValue', {defaultValue: form.getValues('targetFutureValue') ?? undefined});
+      form.resetField('targetFutureValue', {
+        defaultValue: form.getValues('targetFutureValue') ?? defaultFormValues.targetFutureValue,
+      });
     } else {
        form.resetField('targetFutureValue', {defaultValue: undefined});
     }
 
     if (newMode !== 'calculateMonthlyContribution') {
-      form.resetField('monthlyContribution', {defaultValue: form.getValues('monthlyContribution') ?? undefined});
+      form.resetField('monthlyContribution', {
+        defaultValue: form.getValues('monthlyContribution') ?? defaultFormValues.monthlyContribution,
+      });
     } else {
        form.resetField('monthlyContribution', {defaultValue: undefined});
     }
     
     if (newMode !== 'calculateInterestRate') {
-      form.resetField('interestRate', {defaultValue: form.getValues('interestRate') ?? undefined});
+      form.resetField('interestRate', {
+        defaultValue: form.getValues('interestRate') ?? defaultFormValues.interestRate,
+      });
     } else {
        form.resetField('interestRate', {defaultValue: undefined});
     }
 
     if (newMode !== 'calculateInvestmentDuration') {
-       form.resetField('investmentDuration', {defaultValue: form.getValues('investmentDuration') ?? undefined});
+       form.resetField('investmentDuration', {
+        defaultValue: form.getValues('investmentDuration') ?? defaultFormValues.investmentDuration,
+       });
     } else {
         form.resetField('investmentDuration', {defaultValue: undefined});
     }
-     // Re-register initial investment as it's always there
     form.register('initialInvestment');
-    form.trigger(); // Re-validate after changes
+    form.trigger(); 
   };
 
 
@@ -237,7 +243,7 @@ export default function InvestmentCalculatorPage() {
   };
 
  const onSubmit: SubmitHandler<InvestmentFormData> = (data) => {
-    const currentCalculationModeFromForm = data.calculationMode || calculationMode;
+    const currentCalculationModeFromForm = data.calculationMode || calculationMode; // Use data.calculationMode first
     console.log("FORM SUBMITTED, raw data:", JSON.parse(JSON.stringify(data)), "Mode from data:", currentCalculationModeFromForm);
 
     let formInitialInvestment = parseNumericInput(data.initialInvestment);
@@ -335,7 +341,7 @@ export default function InvestmentCalculatorPage() {
                      toast({ title: "Calculation Error", description: "Cannot reach target with 0% interest and no (or negative) contributions if target > initial.", variant: "destructive" }); 
                      return;
                 }
-                 if (projMonthlyContribution === 0) { 
+                 if (projMonthlyContribution === 0 && projTargetFutureValue > projInitialInvestment) { 
                     toast({ title: "Calculation Error", description: "Cannot reach target with 0% interest and 0 monthly contribution if target > initial.", variant: "destructive" });
                     return;
                 }
@@ -437,7 +443,7 @@ export default function InvestmentCalculatorPage() {
                                     projMonthlyContribution * (Math.pow(1 + mid_r_monthly_decimal, N) - 1) / mid_r_monthly_decimal;
                      }
 
-                     if (Math.abs(fv_at_mid_r - projTargetFutureValue) < tolerance_fv_diff * 100) { 
+                     if (Math.abs(fv_at_mid_r - projTargetFutureValue) < tolerance_fv_diff * 100) { // Loosen tolerance for final check if not converged
                         calculatedAnnualIRDecimal = mid_r_monthly_decimal * 12;
                      } else {
                         toast({title: "Calculation Alert", description: "Could not determine a reasonable interest rate. Target might be unachievable or parameters are extreme.", variant: "destructive"});
@@ -612,16 +618,22 @@ export default function InvestmentCalculatorPage() {
         const baseContributions = formInputsForAI.initialInvestment;
         
         const newChartData = yearlyData.map(data => {
-          const cumulativeContributionsUpToThisYearEnd = baseContributions + yearlyData
-            .slice(0, yearlyData.findIndex(y => y.year === data.year) +1) 
-            .reduce((acc, curr) => acc + (curr.contributions || 0), 0); 
+          // Calculate cumulative contributions up to the *beginning* of this year's period for 'amountInvested'
+          const contributionsBeforeThisYear = yearlyData
+            .slice(0, yearlyData.findIndex(y => y.year === data.year))
+            .reduce((acc, curr) => acc + (curr.contributions || 0), 0);
           
-          const interestAccumulatedUpToThisYearEnd = data.endingBalance - cumulativeContributionsUpToThisYearEnd;
+          const amountInvestedAtYearStart = baseContributions + contributionsBeforeThisYear;
+
+          // For 'amountInvested' at year end, include this year's contributions
+          const amountInvestedAtYearEnd = amountInvestedAtYearStart + (data.contributions || 0);
+          
+          const interestAccumulatedUpToThisYearEnd = data.endingBalance - amountInvestedAtYearEnd;
 
         return {
           name: `Year ${Math.floor(data.year)}`, 
           totalValue: data.endingBalance,
-          amountInvested: cumulativeContributionsUpToThisYearEnd,
+          amountInvested: amountInvestedAtYearEnd, // This is cumulative contributions including initial
           interestAccumulated: interestAccumulatedUpToThisYearEnd < 0 ? 0 : interestAccumulatedUpToThisYearEnd, 
         };
       });
@@ -898,7 +910,7 @@ export default function InvestmentCalculatorPage() {
                 )}
                  {(formInputsForAI?.calculationMode === 'calculateInterestRate' || formInputsForAI?.calculationMode === 'calculateInvestmentDuration') && formInputsForAI?.monthlyContribution !== undefined && (
                     <div>
-                        <p className="text-muted-foreground">Monthly Contribution:</p>
+                        <p className="text-muted-foreground">Monthly Contribution (Input):</p>
                         <p className="text-xl font-semibold">{formatCurrency(formInputsForAI.monthlyContribution)}</p>
                     </div>
                 )}
@@ -906,7 +918,7 @@ export default function InvestmentCalculatorPage() {
 
                 {(formInputsForAI?.calculationMode === 'futureValue' || formInputsForAI?.calculationMode === 'calculateMonthlyContribution' || formInputsForAI?.calculationMode === 'calculateInvestmentDuration') && formInputsForAI?.interestRate !== undefined && (
                     <div>
-                        <p className="text-muted-foreground">Annual Interest Rate:</p>
+                        <p className="text-muted-foreground">Annual Interest Rate (Input):</p>
                         <p className="text-xl font-semibold">{formatPercentage(formInputsForAI.interestRate)}</p>
                     </div>
                 )}
@@ -914,7 +926,7 @@ export default function InvestmentCalculatorPage() {
 
                 {(formInputsForAI?.calculationMode === 'futureValue' || formInputsForAI?.calculationMode === 'calculateMonthlyContribution' || formInputsForAI?.calculationMode === 'calculateInterestRate') && formInputsForAI?.investmentDuration !== undefined && (
                     <div>
-                        <p className="text-muted-foreground">Investment Duration:</p>
+                        <p className="text-muted-foreground">Investment Duration (Input):</p>
                         <p className="text-xl font-semibold">{formatYears(formInputsForAI.investmentDuration)}</p>
                     </div>
                 )}
