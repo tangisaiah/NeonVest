@@ -41,15 +41,15 @@ interface ChartDisplayDataItem {
 const chartConfig = {
   totalValue: {
     label: "Total Value",
-    color: "hsl(var(--chart-1))",
+    color: "hsl(var(--chart-1))", // Neon Green (Primary theme color)
   },
   amountInvested: {
     label: "Amount Invested",
-    color: "hsl(var(--chart-2))",
+    color: "hsl(195, 100%, 50%)", // Neon Blue
   },
   interestAccumulated: {
     label: "Interest Accumulated",
-    color: "hsl(var(--chart-3))",
+    color: "hsl(0, 100%, 50%)", // Neon Red
   },
 } satisfies ChartConfig;
 
@@ -99,7 +99,7 @@ export default function InvestmentCalculatorPage() {
       }
       newYearlyData.push({
         year,
-        startingBalance: startingBalanceForYear,
+        startingBalance: startingBalanceForYear, // Retained for data integrity, removed from display
         interestEarned: totalInterestThisYear,
         contributions: totalContributionsThisYear,
         endingBalance: currentBalance,
@@ -146,14 +146,13 @@ export default function InvestmentCalculatorPage() {
           } else if (tipsResult.tips && tipsResult.tips.length > 0) {
             setAiTips(tipsResult.tips);
           } else {
-            // Handles case where tips array is empty or undefined without an error
             setAiTips([]);
-             toast({ // Optional: Inform user if no tips were generated even if no error
+             toast({ 
                title: "AI Tips",
                description: "No specific tips were generated for this scenario.",
              });
           }
-        } catch (error) { // Catch for network errors or other unexpected client-side issues
+        } catch (error) { 
           console.error("Network or client-side error fetching AI tips:", error);
           toast({
             title: "Error",
@@ -197,7 +196,8 @@ export default function InvestmentCalculatorPage() {
         <p className="text-muted-foreground mt-2 text-lg">Chart your financial future. Brightly.</p>
       </header>
 
-      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
+      {/* Investment Input Section */}
+      <div className="w-full max-w-xl mb-12">
         <Card className="shadow-2xl shadow-primary/20">
           <CardHeader>
             <CardTitle className="text-2xl font-headline text-primary flex items-center">
@@ -267,22 +267,130 @@ export default function InvestmentCalculatorPage() {
             </Form>
           </CardContent>
         </Card>
+      </div>
 
-        {results && (
-          <div className="space-y-8 md:col-start-2">
+      {/* Results Section - Conditionally visible */}
+      {results && (
+        <div className="w-full max-w-5xl space-y-10">
+          {/* Graph Card */}
+          {chartDisplayData.length > 0 && (
+            <Card className="w-full shadow-2xl shadow-primary/20">
+              <CardHeader>
+                <CardTitle className="text-2xl font-headline text-primary flex items-center">
+                  <AreaChart className="mr-2 h-7 w-7" /> Investment Growth Chart
+                </CardTitle>
+                <CardDescription>Visual representation of your investment growth over time.</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <ChartContainer config={chartConfig} className="min-h-[300px] w-full aspect-video">
+                  <ComposedChart data={chartDisplayData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="name"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      padding={{ left: 10, right: 10 }}
+                    />
+                    <YAxis
+                      tickFormatter={(value) => formatCurrency(value)}
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      width={90}
+                    />
+                    <RechartsTooltip
+                      cursor={{ strokeDasharray: '3 3' }}
+                      content={<ChartTooltipContent
+                        formatter={(value) => formatCurrency(value as number)}
+                        labelClassName="font-bold"
+                        indicator="dot"
+                       />}
+                    />
+                    <RechartsLegend content={<ChartLegendContent />} />
+                    <RechartsLine
+                      dataKey="amountInvested"
+                      type="monotone"
+                      stroke="var(--color-amountInvested)"
+                      strokeWidth={2}
+                      dot={false}
+                      name={chartConfig.amountInvested.label}
+                    />
+                    <RechartsLine
+                      dataKey="interestAccumulated"
+                      type="monotone"
+                      stroke="var(--color-interestAccumulated)"
+                      strokeWidth={2}
+                      dot={false}
+                      name={chartConfig.interestAccumulated.label}
+                    />
+                    <RechartsLine
+                      dataKey="totalValue"
+                      type="monotone"
+                      stroke="var(--color-totalValue)"
+                      strokeWidth={3}
+                      dot={{ r: 4, fillOpacity: 1 }}
+                      name={chartConfig.totalValue.label}
+                    />
+                  </ComposedChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Table and Results Card Side-by-Side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+            {yearlyData.length > 0 && (
+              <Card className="shadow-2xl shadow-primary/20">
+                <CardHeader>
+                  <CardTitle className="text-2xl font-headline text-primary flex items-center">
+                    <CalendarDays className="mr-2 h-7 w-7" /> Yearly Projection
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-primary">Year</TableHead>
+                        <TableHead className="text-primary">Contributions</TableHead>
+                        <TableHead className="text-primary">Interest Earned</TableHead>
+                        <TableHead className="text-primary">Ending Balance</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {yearlyData.map((data) => (
+                        <TableRow key={data.year}>
+                          <TableCell>{data.year}</TableCell>
+                          <TableCell>{formatCurrency(data.contributions)}</TableCell>
+                          <TableCell>{formatCurrency(data.interestEarned)}</TableCell>
+                          <TableCell className="font-semibold text-primary">{formatCurrency(data.endingBalance)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="shadow-2xl shadow-primary/20">
               <CardHeader>
                 <CardTitle className="text-2xl font-headline text-primary flex items-center">
-                  <TrendingUp className="mr-2 h-7 w-7" /> Results
+                  <TrendingUp className="mr-2 h-7 w-7" /> Results Summary
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {formInputsForAI && (
+                  <div>
+                    <p className="text-muted-foreground">Initial Investment:</p>
+                    <p className="text-xl font-semibold">{formatCurrency(formInputsForAI.initialInvestment)}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-muted-foreground">Future Value:</p>
                   <p className="text-3xl font-bold text-primary">{formatCurrency(results.futureValue)}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Total Contributions:</p>
+                  <p className="text-muted-foreground">Total Contributions (Incl. Initial):</p>
                   <p className="text-xl font-semibold">{formatCurrency(results.totalContributions)}</p>
                 </div>
                 <div>
@@ -292,136 +400,39 @@ export default function InvestmentCalculatorPage() {
               </CardContent>
             </Card>
           </div>
-        )}
-      </div>
 
-      {yearlyData.length > 0 && (
-        <Card className="w-full max-w-4xl mt-8 shadow-2xl shadow-primary/20">
-          <CardHeader>
-            <CardTitle className="text-2xl font-headline text-primary flex items-center">
-              <CalendarDays className="mr-2 h-7 w-7" /> Yearly Projection
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-primary">Year</TableHead>
-                  <TableHead className="text-primary">Starting Balance</TableHead>
-                  <TableHead className="text-primary">Contributions</TableHead>
-                  <TableHead className="text-primary">Interest Earned</TableHead>
-                  <TableHead className="text-primary">Ending Balance</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {yearlyData.map((data) => (
-                  <TableRow key={data.year}>
-                    <TableCell>{data.year}</TableCell>
-                    <TableCell>{formatCurrency(data.startingBalance)}</TableCell>
-                    <TableCell>{formatCurrency(data.contributions)}</TableCell>
-                    <TableCell>{formatCurrency(data.interestEarned)}</TableCell>
-                    <TableCell className="font-semibold text-primary">{formatCurrency(data.endingBalance)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {chartDisplayData.length > 0 && (
-        <Card className="w-full max-w-4xl mt-8 shadow-2xl shadow-primary/20">
-          <CardHeader>
-            <CardTitle className="text-2xl font-headline text-primary flex items-center">
-              <AreaChart className="mr-2 h-7 w-7" /> Investment Growth Chart
-            </CardTitle>
-            <CardDescription>Visual representation of your investment growth over time.</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <ChartContainer config={chartConfig} className="min-h-[300px] w-full aspect-video">
-              <ComposedChart data={chartDisplayData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="name"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  padding={{ left: 10, right: 10 }}
-                />
-                <YAxis
-                  tickFormatter={(value) => formatCurrency(value)}
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  width={90}
-                />
-                <RechartsTooltip
-                  cursor={{ strokeDasharray: '3 3' }}
-                  content={<ChartTooltipContent
-                    formatter={(value) => formatCurrency(value as number)}
-                    labelClassName="font-bold"
-                    indicator="dot"
-                   />}
-                />
-                <RechartsLegend content={<ChartLegendContent />} />
-                <RechartsLine
-                  dataKey="amountInvested"
-                  type="monotone"
-                  stroke="var(--color-amountInvested)"
-                  strokeWidth={2}
-                  dot={false}
-                  name={chartConfig.amountInvested.label}
-                />
-                <RechartsLine
-                  dataKey="interestAccumulated"
-                  type="monotone"
-                  stroke="var(--color-interestAccumulated)"
-                  strokeWidth={2}
-                  dot={false}
-                  name={chartConfig.interestAccumulated.label}
-                />
-                <RechartsLine
-                  dataKey="totalValue"
-                  type="monotone"
-                  stroke="var(--color-totalValue)"
-                  strokeWidth={3}
-                  dot={{ r: 4, fillOpacity: 1 }}
-                  name={chartConfig.totalValue.label}
-                />
-              </ComposedChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {(isLoadingTips || aiTips.length > 0) && results && (
-         <Card className="w-full max-w-4xl mt-8 shadow-2xl shadow-primary/20">
-           <CardHeader>
-             <CardTitle className="text-2xl font-headline text-primary flex items-center">
-               <Lightbulb className="mr-2 h-7 w-7" /> AI Investment Tips
-             </CardTitle>
-           </CardHeader>
-           <CardContent>
-             {isLoadingTips ? (
-               <div className="flex items-center justify-center space-x-2 p-4">
-                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                 <p className="text-muted-foreground">Generating personalized tips...</p>
-               </div>
-             ) : (
-               <Accordion type="single" collapsible className="w-full">
-                 {aiTips.map((tip, index) => (
-                   <AccordionItem value={`item-${index}`} key={index}>
-                     <AccordionTrigger className="text-left hover:text-accent transition-colors">Tip {index + 1}</AccordionTrigger>
-                     <AccordionContent className="text-base">
-                       {tip}
-                     </AccordionContent>
-                   </AccordionItem>
-                 ))}
-               </Accordion>
-             )}
-           </CardContent>
-         </Card>
+          {/* AI Tips Card */}
+          {(isLoadingTips || aiTips.length > 0) && (
+             <Card className="w-full shadow-2xl shadow-primary/20">
+               <CardHeader>
+                 <CardTitle className="text-2xl font-headline text-primary flex items-center">
+                   <Lightbulb className="mr-2 h-7 w-7" /> AI Investment Tips
+                 </CardTitle>
+               </CardHeader>
+               <CardContent>
+                 {isLoadingTips ? (
+                   <div className="flex items-center justify-center space-x-2 p-4">
+                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                     <p className="text-muted-foreground">Generating personalized tips...</p>
+                   </div>
+                 ) : (
+                   <Accordion type="single" collapsible className="w-full">
+                     {aiTips.map((tip, index) => (
+                       <AccordionItem value={`item-${index}`} key={index}>
+                         <AccordionTrigger className="text-left hover:text-accent transition-colors">Tip {index + 1}</AccordionTrigger>
+                         <AccordionContent className="text-base">
+                           {tip}
+                         </AccordionContent>
+                       </AccordionItem>
+                     ))}
+                   </Accordion>
+                 )}
+               </CardContent>
+             </Card>
+          )}
+        </div>
       )}
     </div>
   );
 }
+
