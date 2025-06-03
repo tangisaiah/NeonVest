@@ -12,11 +12,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { generateInvestmentTips, type InvestmentTipsInput, type InvestmentTipsOutput } from '@/ai/flows/generate-investment-tips';
-import { DollarSign, Percent, CalendarDays, TrendingUp, Lightbulb, Loader2, AreaChart, Target, HelpCircle } from 'lucide-react';
+import { DollarSign, Percent, CalendarDays, TrendingUp, Lightbulb, Loader2, AreaChart, Target } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import {
   ChartContainer,
@@ -49,20 +48,15 @@ const formatForDisplay = (value: number | undefined): string => {
     return '';
   }
   const numValue = Number(value);
-  // Check if it's an integer or has decimal places
   if (numValue % 1 === 0) {
-    return numValue.toLocaleString('en-US'); // Format integers without decimals
+    return numValue.toLocaleString('en-US');
   }
-  // For numbers with decimals, ensure they are formatted correctly, possibly with limited precision if needed
-  // This example uses default toLocaleString which should handle decimals fine for display.
-  // If specific decimal places are needed for display, add options: { minimumFractionDigits: 2, maximumFractionDigits: 2 }
   return numValue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 20 });
 };
 
 const parseInput = (inputValue: string): number | undefined => {
-  // Remove all non-numeric characters except for the decimal point
   const cleaned = inputValue.replace(/[^0-9.]/g, '');
-  if (cleaned === '' || cleaned === '.') return undefined; // Handle empty or only decimal point input
+  if (cleaned === '' || cleaned === '.') return undefined;
   const numberValue = parseFloat(cleaned);
   return isNaN(numberValue) ? undefined : numberValue;
 };
@@ -82,11 +76,11 @@ const chartConfig = {
   },
   amountInvested: {
     label: "Amount Invested",
-    color: "hsl(195, 100%, 50%)", // Neon Blue
+    color: "hsl(195, 100%, 50%)", 
   },
   interestAccumulated: {
     label: "Interest Accumulated",
-    color: "hsl(0, 100%, 50%)", // Neon Red
+    color: "hsl(0, 100%, 50%)", 
   },
 } satisfies ChartConfig;
 
@@ -124,43 +118,41 @@ export default function InvestmentCalculatorPage() {
   const calculateFullProjection = (
     initialInvestment: number,
     monthlyContribution: number,
-    interestRate: number, // As percentage, e.g., 7 for 7%
-    investmentDuration: number // In years
+    interestRate: number, 
+    investmentDuration: number 
   ): { yearlyData: YearlyData[], futureValue: number, totalInterest: number, totalContributions: number } => {
     const annualInterestRateDecimal = interestRate / 100;
     const monthlyInterestRate = annualInterestRateDecimal / 12;
 
     let currentBalance = initialInvestment;
     const newYearlyData: YearlyData[] = [];
-    let totalContributionsOverall = initialInvestment; // Initial investment is part of contributions
+    let totalContributionsOverall = initialInvestment; 
 
     for (let year = 1; year <= investmentDuration; year++) {
       const startingBalanceForYear = currentBalance;
       let totalInterestThisYear = 0;
-      let totalContributionsThisYear = 0; // Contributions for this specific year (excluding initial)
+      let totalContributionsThisYear = 0; 
 
       for (let month = 1; month <= 12; month++) {
         const interestThisMonth = currentBalance * monthlyInterestRate;
         currentBalance += interestThisMonth;
         totalInterestThisYear += interestThisMonth;
         
-        // Monthly contributions are added after interest calculation for the month
         if (monthlyContribution > 0) {
             currentBalance += monthlyContribution;
             totalContributionsThisYear += monthlyContribution;
-            totalContributionsOverall += monthlyContribution; // Accumulate overall contributions
+            totalContributionsOverall += monthlyContribution; 
         }
       }
       newYearlyData.push({
         year,
-        startingBalance: startingBalanceForYear, // Not used in table display anymore
+        startingBalance: startingBalanceForYear,
         interestEarned: totalInterestThisYear,
         contributions: totalContributionsThisYear,
         endingBalance: currentBalance,
       });
     }
     const futureValue = currentBalance;
-    // Total interest is the final value minus all money put in (initial + all monthly)
     const totalInterestEarned = futureValue - totalContributionsOverall;
     
     return {
@@ -177,25 +169,21 @@ export default function InvestmentCalculatorPage() {
     let calculatedMonthlyContribution: number | undefined = undefined;
     let calculatedInterestRate: number | undefined = undefined;
     let calculatedInvestmentDuration: number | undefined = undefined;
-    let finalFutureValue: number | undefined = undefined; // To store the target if it's an input
+    let finalFutureValue: number | undefined = undefined; 
     let originalTargetFutureValueForDisplay: number | undefined = undefined;
 
-
-    // Get the current calculation mode from the form state itself
     const mode = form.getValues('calculationMode');
 
     try {
-      // Validate that all necessary fields for the *selected mode* are present.
-      // Zod schema handles general validation, this is mode-specific logic.
       if (mode === 'calculateMonthlyContribution') {
         if (initialInvestment === undefined || interestRate === undefined || investmentDuration === undefined || targetFutureValue === undefined) {
           toast({ title: "Input Error", description: "Please fill Initial Investment, Interest Rate, Duration, and Target Future Value.", variant: "destructive" });
           return;
         }
         originalTargetFutureValueForDisplay = targetFutureValue;
-        const i = (interestRate / 100) / 12; // monthly interest rate
-        const N = investmentDuration * 12; // total number of periods
-        if (i === 0) { // Handle 0% interest rate separately
+        const i = (interestRate / 100) / 12; 
+        const N = investmentDuration * 12; 
+        if (i === 0) { 
             calculatedMonthlyContribution = (targetFutureValue - initialInvestment) / N;
         } else {
             const futureValueOfInitial = initialInvestment * Math.pow(1 + i, N);
@@ -204,10 +192,10 @@ export default function InvestmentCalculatorPage() {
 
         if (calculatedMonthlyContribution < 0) {
           toast({title: "Calculation Alert", description: "Target is unachievable with positive contributions. Consider adjusting parameters.", variant: "destructive"});
-          calculatedMonthlyContribution = 0; // Or handle as error, set to 0 for projection
+          calculatedMonthlyContribution = 0; 
         }
         form.setValue('monthlyContribution', parseFloat(calculatedMonthlyContribution.toFixed(2)));
-        monthlyContribution = calculatedMonthlyContribution; // Update the variable for projection
+        monthlyContribution = calculatedMonthlyContribution; 
         finalFutureValue = targetFutureValue;
       } else if (mode === 'calculateInvestmentDuration') {
         if (initialInvestment === undefined || monthlyContribution === undefined || interestRate === undefined || targetFutureValue === undefined) {
@@ -215,28 +203,26 @@ export default function InvestmentCalculatorPage() {
           return;
         }
         originalTargetFutureValueForDisplay = targetFutureValue;
-        const i = (interestRate / 100) / 12; // monthly interest rate
-        // FV = P(1+i)^N + M [((1+i)^N - 1)/i]
-        // For N: N = ln((FV*i + M) / (P*i + M)) / ln(1+i)
+        const i = (interestRate / 100) / 12; 
         if (targetFutureValue <= initialInvestment && monthlyContribution <=0) {
             toast({ title: "Calculation Error", description: "Target value must be greater than initial investment if contributions are zero or negative.", variant: "destructive" });
             return;
         }
-        if (i === 0) { // 0% interest
+        if (i === 0) { 
             if (monthlyContribution <=0 && targetFutureValue > initialInvestment) {
                  toast({ title: "Calculation Error", description: "Cannot reach target with 0% interest and no positive contributions.", variant: "destructive" }); return;
             }
             calculatedInvestmentDuration = (targetFutureValue - initialInvestment) / (monthlyContribution * 12);
-        } else { // Interest rate is not 0
+        } else { 
             if ((initialInvestment * i + monthlyContribution) <= 0 && (targetFutureValue * i + monthlyContribution) > 0) {
                  toast({ title: "Calculation Error", description: "Cannot reach target with these parameters (denominator would be non-positive).", variant: "destructive" }); return;
             }
-             if (monthlyContribution === 0 && interestRate > 0) { // Only initial investment grows
+             if (monthlyContribution === 0 && interestRate > 0) { 
                 if (targetFutureValue <= initialInvestment) {
                      toast({ title: "Calculation Error", description: "Target must be greater than initial investment.", variant: "destructive" }); return;
                 }
                 calculatedInvestmentDuration = Math.log(targetFutureValue / initialInvestment) / (12 * Math.log(1 + i));
-            } else if (initialInvestment * i + monthlyContribution <= 0) { // Denominator check or investment doesn't grow
+            } else if (initialInvestment * i + monthlyContribution <= 0) { 
                 toast({ title: "Calculation Error", description: "Investment will not grow to target with these parameters.", variant: "destructive" }); return;
             }
             else {
@@ -252,10 +238,10 @@ export default function InvestmentCalculatorPage() {
 
          if (calculatedInvestmentDuration === undefined || calculatedInvestmentDuration < 0 || !isFinite(calculatedInvestmentDuration)) {
             toast({title: "Calculation Alert", description: "Target is likely unachievable or calculation resulted in an invalid duration. Please check parameters.", variant: "destructive"});
-            calculatedInvestmentDuration = undefined; // Prevent further calculation
+            calculatedInvestmentDuration = undefined; 
         } else {
             form.setValue('investmentDuration', parseFloat(calculatedInvestmentDuration.toFixed(2)));
-            investmentDuration = calculatedInvestmentDuration; // Update for projection
+            investmentDuration = calculatedInvestmentDuration; 
         }
         finalFutureValue = targetFutureValue;
       } else if (mode === 'calculateInterestRate') {
@@ -264,30 +250,28 @@ export default function InvestmentCalculatorPage() {
           return;
         }
         originalTargetFutureValueForDisplay = targetFutureValue;
-        const N = investmentDuration * 12; // total periods
-        // Bisection method to find the monthly interest rate i
-        let low_i = 0; // 0%
-        let high_i = 0.5; // 50% monthly rate (600% annual) is extremely high, good upper bound
+        const N = investmentDuration * 12; 
+        let low_i = 0; 
+        let high_i = 0.5; 
         let mid_i;
         let fv_at_mid_i;
         let iterations = 0;
 
         if (targetFutureValue < initialInvestment + monthlyContribution * N) {
              toast({ title: "Target Value Alert", description: "Target value is less than total contributions without any interest. Desired rate might be negative or zero.", variant: "default" });
-             // still attempt to find a rate, might be 0 or slightly negative if logic supports
         }
-        if (targetFutureValue === initialInvestment + monthlyContribution * N) { // Exactly matches contributions, so 0% rate
+        if (targetFutureValue === initialInvestment + monthlyContribution * N) { 
             calculatedInterestRate = 0;
         } else {
-            while (iterations < 100) { // Limit iterations to prevent infinite loops
+            while (iterations < 100) { 
                 mid_i = (low_i + high_i) / 2;
-                if (mid_i === 0) { // Avoid division by zero if contributions are present
+                if (mid_i === 0) { 
                      fv_at_mid_i = initialInvestment + monthlyContribution * N;
                 } else {
                     fv_at_mid_i = initialInvestment * Math.pow(1 + mid_i, N) + monthlyContribution * (Math.pow(1 + mid_i, N) - 1) / mid_i;
                 }
 
-                if (Math.abs(fv_at_mid_i - targetFutureValue) < 0.01) { // Tolerance for convergence
+                if (Math.abs(fv_at_mid_i - targetFutureValue) < 0.01) { 
                     break;
                 }
 
@@ -298,21 +282,20 @@ export default function InvestmentCalculatorPage() {
                 }
                 iterations++;
             }
-            calculatedInterestRate = mid_i * 12 * 100; // Annual percentage rate
+            calculatedInterestRate = mid_i * 12 * 100; 
         }
 
 
-        if (calculatedInterestRate === undefined || calculatedInterestRate < 0 || calculatedInterestRate > 1000 ) { // Cap at 1000% for sanity
+        if (calculatedInterestRate === undefined || calculatedInterestRate < 0 || calculatedInterestRate > 1000 ) { 
              toast({title: "Calculation Alert", description: "Could not determine a reasonable interest rate. Target might be unachievable or parameters are extreme.", variant: "destructive"});
-             calculatedInterestRate = undefined; // Prevent projection with this rate
+             calculatedInterestRate = undefined; 
         } else {
             form.setValue('interestRate', parseFloat(calculatedInterestRate.toFixed(2)));
-            interestRate = calculatedInterestRate; // Update for projection
+            interestRate = calculatedInterestRate; 
         }
         finalFutureValue = targetFutureValue;
       }
 
-      // After any mode-specific calculation, ensure all necessary parameters are defined for the full projection
       if (initialInvestment === undefined || monthlyContribution === undefined || interestRate === undefined || investmentDuration === undefined ) {
         toast({ title: "Projection Error", description: "One or more parameters are still missing for full projection. Please check inputs or calculated values.", variant: "destructive" });
         setResults(null);
@@ -320,21 +303,20 @@ export default function InvestmentCalculatorPage() {
         return;
       }
 
-      // Perform the full projection with the complete set of parameters
       const projection = calculateFullProjection(initialInvestment, monthlyContribution, interestRate, investmentDuration);
       
       setResults({
-        futureValue: mode === 'futureValue' ? projection.futureValue : (finalFutureValue || projection.futureValue), // Use target FV if it was an input
+        futureValue: mode === 'futureValue' ? projection.futureValue : (finalFutureValue || projection.futureValue), 
         totalInterest: projection.totalInterest,
         totalContributions: projection.totalContributions,
         calculatedMonthlyContribution: mode === 'calculateMonthlyContribution' ? monthlyContribution : undefined,
         calculatedInterestRate: mode === 'calculateInterestRate' ? interestRate : undefined,
         calculatedInvestmentDuration: mode === 'calculateInvestmentDuration' ? investmentDuration : undefined,
-        originalTargetFutureValue: originalTargetFutureValueForDisplay, // Store for display
+        originalTargetFutureValue: originalTargetFutureValueForDisplay, 
       });
       setYearlyData(projection.yearlyData);
-      setAiTips([]); // Reset AI tips, will be fetched in useEffect
-      setFormInputsForAI({ ...data, monthlyContribution, interestRate, investmentDuration }); // Pass the complete, potentially calculated values
+      setAiTips([]); 
+      setFormInputsForAI({ ...data, monthlyContribution, interestRate, investmentDuration }); 
 
     } catch (error) {
       console.error("Calculation Error:", error);
@@ -345,21 +327,19 @@ export default function InvestmentCalculatorPage() {
   };
 
   useEffect(() => {
-    // Watch for changes in the calculationMode field specifically
-    const currentMode = form.watch('calculationMode');
-    setCalculationMode(currentMode); // Update local state for UI logic
-    // Optionally, you can reset other form fields or results here if needed when mode changes
-    // form.reset(); // or selectively reset fields
-    // setResults(null);
-    // setYearlyData([]);
-  }, [form.watch('calculationMode'), form]);
+    const subscription = form.watch((value, { name }) => {
+      if (name === 'calculationMode') {
+        const newMode = value.calculationMode as CalculationMode;
+        setCalculationMode(newMode);
+        // Results are reset directly in Tabs onValueChange
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form, setCalculationMode]);
 
 
  useEffect(() => {
     if (results && formInputsForAI) {
-      const currentMode = form.getValues('calculationMode'); // Get current mode to ensure all data is aligned
-
-      // Ensure all essential parameters for AI are present AND valid numbers before fetching
       const allParamsPresentAndValid = 
           formInputsForAI.initialInvestment !== undefined && !isNaN(formInputsForAI.initialInvestment) &&
           formInputsForAI.monthlyContribution !== undefined && !isNaN(formInputsForAI.monthlyContribution) &&
@@ -370,8 +350,6 @@ export default function InvestmentCalculatorPage() {
           results.totalContributions !== undefined && !isNaN(results.totalContributions);
 
       if (!allParamsPresentAndValid) {
-          // Do not fetch AI tips if not all parameters are available/valid after calculation
-          // This can happen if a calculation mode failed to produce a valid number for a parameter
           setIsLoadingTips(false);
           setAiTips([]);
           console.warn("AI Tips fetch skipped: Not all parameters are available or valid.", {formInputsForAI, results});
@@ -382,7 +360,7 @@ export default function InvestmentCalculatorPage() {
         setIsLoadingTips(true);
         try {
           const aiInput: InvestmentTipsInput = {
-            initialInvestment: formInputsForAI.initialInvestment!, // Should be valid by now
+            initialInvestment: formInputsForAI.initialInvestment!, 
             monthlyContribution: formInputsForAI.monthlyContribution!,
             interestRate: formInputsForAI.interestRate!,
             investmentDuration: formInputsForAI.investmentDuration!,
@@ -393,7 +371,7 @@ export default function InvestmentCalculatorPage() {
           const tipsResult: InvestmentTipsOutput = await generateInvestmentTips(aiInput);
 
           if (tipsResult.error) {
-            console.warn("AI tips generation failed with error message:", tipsResult.error); // Changed from console.error
+            console.warn("AI tips generation failed with error message:", tipsResult.error); 
             toast({
               title: "AI Tips Error",
               description: tipsResult.error,
@@ -404,12 +382,12 @@ export default function InvestmentCalculatorPage() {
             setAiTips(tipsResult.tips);
           } else {
             setAiTips([]);
-             toast({ // Non-destructive toast for no tips
+             toast({ 
                title: "AI Tips",
                description: "No specific tips were generated for this scenario.",
              });
           }
-        } catch (error) { // Catch network or other client-side errors during fetch
+        } catch (error) { 
           console.error("Network or client-side error fetching AI tips:", error);
           toast({
             title: "Error",
@@ -424,14 +402,11 @@ export default function InvestmentCalculatorPage() {
       fetchAITips();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results, formInputsForAI, toast, form]); // Added form to deps for form.getValues
+  }, [results, formInputsForAI, toast]); 
 
   useEffect(() => {
     if (yearlyData.length > 0 && formInputsForAI && formInputsForAI.initialInvestment !== undefined) {
-      // Ensure yearlyData and initialInvestment are valid before processing
       const newChartData = yearlyData.map(data => {
-        // Calculate cumulative contributions up to the current year (data.year)
-        // This should include initialInvestment + sum of (yearly contributions up to year-1)
         const cumulativeContributionsThisFar = formInputsForAI!.initialInvestment! + 
           yearlyData.slice(0, data.year).reduce((acc, curr) => acc + curr.contributions, 0);
         
@@ -444,45 +419,22 @@ export default function InvestmentCalculatorPage() {
       });
       setChartDisplayData(newChartData);
     } else {
-      setChartDisplayData([]); // Reset if no data
+      setChartDisplayData([]); 
     }
-  }, [yearlyData, formInputsForAI]); // Depends on yearlyData and formInputsForAI
+  }, [yearlyData, formInputsForAI]); 
 
 
-  // Helper to determine if a field should be disabled based on the current calculation mode
   const isFieldDisabled = (fieldName: keyof InvestmentFormData) => {
-    const currentMode = form.getValues('calculationMode'); // Get current mode directly
-    if (currentMode === 'futureValue') return false; // All inputs enabled
+    if (calculationMode === 'futureValue') return false; 
 
-    if (currentMode === 'calculateMonthlyContribution' && fieldName === 'monthlyContribution') return true;
-    if (currentMode === 'calculateInterestRate' && fieldName === 'interestRate') return true;
-    if (currentMode === 'calculateInvestmentDuration' && fieldName === 'investmentDuration') return true;
+    if (calculationMode === 'calculateMonthlyContribution' && fieldName === 'monthlyContribution') return true;
+    if (calculationMode === 'calculateInterestRate' && fieldName === 'interestRate') return true;
+    if (calculationMode === 'calculateInvestmentDuration' && fieldName === 'investmentDuration') return true;
     
-    // Target Future Value is an input for all modes except 'futureValue'
-    if (currentMode !== 'futureValue' && fieldName === 'targetFutureValue') return false;
-    // Target Future Value is disabled (not an input) if mode is 'futureValue'
-    if (currentMode === 'futureValue' && fieldName === 'targetFutureValue') return true;
+    if (calculationMode !== 'futureValue' && fieldName === 'targetFutureValue') return false;
+    if (calculationMode === 'futureValue' && fieldName === 'targetFutureValue') return true;
 
-    return false; // Default to enabled
-  };
-
-  // Helper to determine if a field is conceptually required for the current calculation mode
-  // Note: Actual form validation is handled by Zod and submit handler logic
-  const isFieldRequired = (fieldName: keyof InvestmentFormData) => {
-    const currentMode = form.getValues('calculationMode');
-    if (currentMode === 'futureValue') {
-      return ['initialInvestment', 'monthlyContribution', 'interestRate', 'investmentDuration'].includes(fieldName);
-    }
-    if (currentMode === 'calculateMonthlyContribution') {
-      return ['initialInvestment', 'interestRate', 'investmentDuration', 'targetFutureValue'].includes(fieldName);
-    }
-    if (currentMode === 'calculateInterestRate') {
-      return ['initialInvestment', 'monthlyContribution', 'investmentDuration', 'targetFutureValue'].includes(fieldName);
-    }
-    if (currentMode === 'calculateInvestmentDuration') {
-      return ['initialInvestment', 'monthlyContribution', 'interestRate', 'targetFutureValue'].includes(fieldName);
-    }
-    return false; // Default
+    return false; 
   };
 
 
@@ -499,69 +451,31 @@ export default function InvestmentCalculatorPage() {
             <Card className="shadow-2xl shadow-primary/20">
               <CardHeader>
                 <CardTitle className="text-2xl font-headline text-primary flex items-center">
-                  <HelpCircle className="mr-2 h-7 w-7" /> Calculation Mode
-                </CardTitle>
-                <CardDescription>Select what you want to calculate.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <FormField
-                  control={form.control}
-                  name="calculationMode"
-                  render={({ field }) => (
-                    <RadioGroup
-                      onValueChange={(value) => {
-                        field.onChange(value as CalculationMode);
-                        setCalculationMode(value as CalculationMode); // Keep local state in sync
-                        setResults(null); // Reset results when mode changes
-                        setYearlyData([]);
-                        setAiTips([]);
-                        // form.reset(); // Consider if a full form reset is desired on mode change
-                      }}
-                      defaultValue={field.value}
-                      className="grid grid-cols-2 gap-4"
-                    >
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="futureValue" id="futureValue" />
-                        </FormControl>
-                        <Label htmlFor="futureValue" className="font-normal text-base">Calculate Future Value</Label>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="monthlyContribution" id="monthlyContributionMode" />
-                        </FormControl>
-                        <Label htmlFor="monthlyContributionMode" className="font-normal text-base">Calculate Monthly Contribution</Label>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="interestRate" id="interestRateMode" />
-                        </FormControl>
-                        <Label htmlFor="interestRateMode" className="font-normal text-base">Calculate Interest Rate</Label>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="investmentDuration" id="investmentDurationMode" />
-                        </FormControl>
-                        <Label htmlFor="investmentDurationMode" className="font-normal text-base">Calculate Investment Duration</Label>
-                      </FormItem>
-                    </RadioGroup>
-                  )}
-                />
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="w-full max-w-xl mb-12">
-            <Card className="shadow-2xl shadow-primary/20">
-              <CardHeader>
-                <CardTitle className="text-2xl font-headline text-primary flex items-center">
                   <TrendingUp className="mr-2 h-7 w-7" /> Investment Inputs
                 </CardTitle>
-                <CardDescription>Enter your investment details below.
-                    {calculationMode !== 'futureValue' && " The highlighted field will be calculated."}
-                </CardDescription>
+                <CardDescription>Select a tab to choose what to calculate. The highlighted field will be determined.</CardDescription>
               </CardHeader>
               <CardContent>
+                 <Tabs
+                    defaultValue="futureValue"
+                    onValueChange={(value) => {
+                      const newMode = value as CalculationMode;
+                      form.setValue('calculationMode', newMode);
+                      setCalculationMode(newMode);
+                      setResults(null);
+                      setYearlyData([]);
+                      setAiTips([]);
+                    }}
+                    className="mb-6"
+                  >
+                    <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+                      <TabsTrigger value="futureValue">Future Value</TabsTrigger>
+                      <TabsTrigger value="monthlyContribution">Monthly Contrib.</TabsTrigger>
+                      <TabsTrigger value="interestRate">Interest Rate</TabsTrigger>
+                      <TabsTrigger value="investmentDuration">Duration</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+
                 <div className="space-y-6">
                   {calculationMode !== 'futureValue' && (
                     <FormField
@@ -572,7 +486,7 @@ export default function InvestmentCalculatorPage() {
                           <FormLabel className="flex items-center text-base"><Target className="mr-2 h-4 w-4 text-primary" />Target Future Value ($)</FormLabel>
                           <FormControl>
                             <Input
-                              type="text" // Changed for formatting
+                              type="text" 
                               placeholder="e.g., 1,000,000"
                               value={field.value === undefined || field.value === null || field.value === '' ? '' : formatForDisplay(Number(field.value))}
                               onChange={(e) => field.onChange(parseInput(e.target.value))}
@@ -597,7 +511,7 @@ export default function InvestmentCalculatorPage() {
                         <FormLabel className="flex items-center text-base"><DollarSign className="mr-2 h-4 w-4 text-primary" />Initial Investment ($)</FormLabel>
                         <FormControl>
                           <Input
-                            type="text" // Changed for formatting
+                            type="text" 
                             placeholder="e.g., 1,000"
                             value={field.value === undefined || field.value === null || field.value === '' ? '' : formatForDisplay(Number(field.value))}
                              onChange={(e) => field.onChange(parseInput(e.target.value))}
@@ -623,7 +537,7 @@ export default function InvestmentCalculatorPage() {
                         </FormLabel>
                         <FormControl>
                            <Input
-                            type="text" // Changed for formatting
+                            type="text" 
                             placeholder="e.g., 100"
                             value={field.value === undefined || field.value === null || field.value === '' ? '' : formatForDisplay(Number(field.value))}
                              onChange={(e) => field.onChange(parseInput(e.target.value))}
@@ -689,7 +603,7 @@ export default function InvestmentCalculatorPage() {
       </Form>
 
       {results && (
-        <div className="w-full max-w-5xl space-y-10 mt-12"> {/* Added mt-12 for spacing */}
+        <div className="w-full max-w-5xl space-y-10 mt-12"> 
           {chartDisplayData.length > 0 && (
             <Card className="w-full shadow-2xl shadow-primary/20">
               <CardHeader>
@@ -759,13 +673,13 @@ export default function InvestmentCalculatorPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {formInputsForAI?.initialInvestment !== undefined && ( // Display initial investment from form inputs
+                {formInputsForAI?.initialInvestment !== undefined && ( 
                   <div>
                     <p className="text-muted-foreground">Initial Investment:</p>
                     <p className="text-xl font-semibold">{formatCurrency(formInputsForAI.initialInvestment)}</p>
                   </div>
                 )}
-                {results.originalTargetFutureValue !== undefined && ( // Display if target was an input
+                {results.originalTargetFutureValue !== undefined && ( 
                      <div>
                         <p className="text-muted-foreground">Target Future Value:</p>
                         <p className="text-xl font-semibold">{formatCurrency(results.originalTargetFutureValue)}</p>
