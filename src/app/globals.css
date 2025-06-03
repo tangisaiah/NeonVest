@@ -35,8 +35,8 @@
     --ring: 128 100% 54%; /* Neon Green for focus rings */
 
     --chart-1: 128 100% 54%; /* Neon Green */
-    --chart-2: 230 100% 60%; /* Neon Blue */
-    --chart-3: 0 100% 55%;   /* Neon Red */
+    --chart-2: 230 100% 68%; /* Brighter Neon Blue */
+    --chart-3: 0 100% 62%;   /* Brighter Neon Red */
     --chart-4: 150 70% 55%;
     --chart-5: 100 50% 60%;
 
@@ -75,8 +75,8 @@
     --ring: 128 100% 54%;
 
     --chart-1: 128 100% 54%; /* Neon Green */
-    --chart-2: 230 100% 60%; /* Neon Blue */
-    --chart-3: 0 100% 55%;   /* Neon Red */
+    --chart-2: 230 100% 68%; /* Brighter Neon Blue */
+    --chart-3: 0 100% 62%;   /* Brighter Neon Red */
     --chart-4: 150 70% 55%;
     --chart-5: 100 50% 60%;
 
