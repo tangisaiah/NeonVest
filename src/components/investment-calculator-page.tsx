@@ -40,7 +40,8 @@ const formatPercentage = (value: number | undefined) => {
 
 const formatYears = (value: number | undefined) => {
   if (value === undefined || isNaN(value)) return "N/A";
-  return Number.isInteger(value) ? `${value} years` : `${value.toFixed(2)} years`;
+  // Display integer years as "X years", fractional years with two decimal places
+  return Number.isInteger(value) ? `${value} years` : `${Number(value).toFixed(2)} years`;
 }
 
 const formatForDisplay = (value: number | undefined): string => {
@@ -51,12 +52,16 @@ const formatForDisplay = (value: number | undefined): string => {
   return numValue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 20 });
 };
 
+const parseNumericInput = (inputValue: string | number | undefined): number | undefined => {
+    if (inputValue === undefined || inputValue === null) return undefined;
+    const stringValue = String(inputValue).trim();
+    if (stringValue === "") return undefined;
 
-const parseInput = (inputValue: string): number | undefined => {
-  const cleaned = inputValue.replace(/[^0-9.]/g, '');
-  if (cleaned === '' || cleaned === '.') return undefined;
-  const numberValue = parseFloat(cleaned);
-  return isNaN(numberValue) ? undefined : numberValue;
+    const cleaned = stringValue.replace(/[^0-9.-]/g, '');
+    if (cleaned === '' || cleaned === '.' || cleaned === '-') return undefined;
+    
+    const numberValue = parseFloat(cleaned);
+    return isNaN(numberValue) ? undefined : numberValue;
 };
 
 
@@ -97,10 +102,7 @@ export default function InvestmentCalculatorPage() {
   const [isLoadingTips, setIsLoadingTips] = useState(false);
   const [formInputsForAI, setFormInputsForAI] = useState<InvestmentFormData | null>(null);
   const [chartDisplayData, setChartDisplayData] = useState<ChartDisplayDataItem[]>([]);
-  const [calculationMode, setCalculationMode] = useState<CalculationMode>('futureValue');
-
-  const { toast } = useToast();
-
+  
   const form = useForm<InvestmentFormData>({
     resolver: zodResolver(InvestmentFormSchema),
     defaultValues: {
@@ -113,29 +115,38 @@ export default function InvestmentCalculatorPage() {
     },
   });
 
+  // Local state for calculationMode, source of truth for UI conditional rendering
+  // Initialized from form's default or 'futureValue'
+  const [calculationMode, setCalculationMode] = useState<CalculationMode>(
+    form.getValues('calculationMode') || 'futureValue'
+  );
+
+  const { toast } = useToast();
+
   const calculateFullProjection = (
     initialInvestment: number,
     monthlyContribution: number,
     interestRate: number,
-    investmentDuration: number
+    investmentDuration: number // Can be fractional
   ): { yearlyData: YearlyData[], futureValue: number, totalInterest: number, totalContributions: number } => {
+    console.log("[calculateFullProjection] Inputs:", { initialInvestment, monthlyContribution, interestRate, investmentDuration });
     const annualInterestRateDecimal = interestRate / 100;
     const monthlyInterestRate = annualInterestRateDecimal / 12;
 
     let currentBalance = initialInvestment;
     const newYearlyData: YearlyData[] = [];
-    let totalContributionsOverall = initialInvestment;
+    let totalContributionsOverall = initialInvestment; // Initial investment is part of contributions
 
-    const wholeYearsDuration = Math.floor(investmentDuration);
-    const remainingMonths = Math.round((investmentDuration - wholeYearsDuration) * 12);
+    // Calculate total months for the loop, handling fractional years
+    const totalMonths = Math.round(investmentDuration * 12);
+    let yearCounterForTable = 1;
+    let monthsInCurrentYear = 0;
+    let startingBalanceForYear = initialInvestment;
+    let totalInterestThisYear = 0;
+    let totalContributionsThisYear = 0;
 
 
-    for (let year = 1; year <= wholeYearsDuration; year++) {
-      const startingBalanceForYear = currentBalance;
-      let totalInterestThisYear = 0;
-      let totalContributionsThisYear = 0;
-
-      for (let month = 1; month <= 12; month++) {
+    for (let month = 1; month <= totalMonths; month++) {
         const interestThisMonth = currentBalance * monthlyInterestRate;
         currentBalance += interestThisMonth;
         totalInterestThisYear += interestThisMonth;
@@ -145,30 +156,32 @@ export default function InvestmentCalculatorPage() {
             totalContributionsThisYear += monthlyContribution;
             totalContributionsOverall += monthlyContribution;
         }
-      }
-      newYearlyData.push({
-        year,
-        startingBalance: startingBalanceForYear,
-        interestEarned: totalInterestThisYear,
-        contributions: totalContributionsThisYear,
-        endingBalance: currentBalance,
-      });
-    }
+        monthsInCurrentYear++;
 
-    if (remainingMonths > 0) {
-        for (let month = 1; month <= remainingMonths; month++) {
-            const interestThisMonth = currentBalance * monthlyInterestRate;
-            currentBalance += interestThisMonth;
-            if (monthlyContribution > 0) {
-                currentBalance += monthlyContribution;
-                totalContributionsOverall += monthlyContribution;
-            }
+        // If it's the end of a year or the end of the total duration
+        if (monthsInCurrentYear === 12 || month === totalMonths) {
+             if (yearCounterForTable <= Math.floor(investmentDuration) || (month === totalMonths && monthsInCurrentYear > 0) ){ // only push full years or final partial year
+                newYearlyData.push({
+                    year: yearCounterForTable,
+                    startingBalance: startingBalanceForYear,
+                    interestEarned: totalInterestThisYear,
+                    contributions: totalContributionsThisYear, // Contributions within this period
+                    endingBalance: currentBalance,
+                });
+             }
+            // Reset for next year (if any)
+            yearCounterForTable++;
+            monthsInCurrentYear = 0;
+            startingBalanceForYear = currentBalance;
+            totalInterestThisYear = 0;
+            totalContributionsThisYear = 0;
         }
     }
-
+    
     const futureValue = currentBalance;
     const totalInterestEarned = futureValue - totalContributionsOverall;
 
+    console.log("[calculateFullProjection] Output:", { futureValue, totalInterest: totalInterestEarned, totalContributions: totalContributionsOverall, yearlyDataLength: newYearlyData.length });
     return {
         yearlyData: newYearlyData,
         futureValue,
@@ -179,44 +192,44 @@ export default function InvestmentCalculatorPage() {
 
 
   const onSubmit: SubmitHandler<InvestmentFormData> = (data) => {
+    const currentCalculationMode = form.getValues('calculationMode'); // Use RHF's current mode
     console.log("--- onSubmit triggered ---");
-    console.log("Calculation Mode:", data.calculationMode);
-    console.log("Form Data (data object):", JSON.parse(JSON.stringify(data)));
+    console.log("FORM SUBMITTED, raw data:", JSON.parse(JSON.stringify(data)), "Mode:", currentCalculationMode);
 
-    const currentCalculationMode = data.calculationMode;
 
-    // Helper to parse form field string to number, returns undefined if NaN
-    const parseNumericInput = (value: string | number | undefined): number | undefined => {
-        if (value === undefined || value === null || String(value).trim() === "") return undefined;
-        const num = parseFloat(String(value));
-        return isNaN(num) ? undefined : num;
-    };
-    
     let projInitialInvestment = parseNumericInput(data.initialInvestment);
     let projMonthlyContribution = parseNumericInput(data.monthlyContribution);
     let projInterestRate = parseNumericInput(data.interestRate);
-    let projInvestmentDuration = parseNumericInput(data.investmentDuration);
-    let inputTargetFutureValue = parseNumericInput(data.targetFutureValue);
+    let projInvestmentDuration = parseNumericInput(data.investmentDuration); // Can be fractional years
+    let projTargetFutureValue = parseNumericInput(data.targetFutureValue);
+
+    console.log("[onSubmit] Parsed initial inputs:", { projInitialInvestment, projMonthlyContribution, projInterestRate, projInvestmentDuration, projTargetFutureValue });
 
     let resultsCalculatedMonthlyContribution: number | undefined = undefined;
     let resultsCalculatedInterestRate: number | undefined = undefined;
     let resultsCalculatedInvestmentDuration: number | undefined = undefined;
     
-    let originalTargetFutureValueForDisplay: number | undefined = (currentCalculationMode !== 'futureValue' && inputTargetFutureValue !== undefined) ? inputTargetFutureValue : undefined;
+    // This will hold the FV used for display (either projected or the target itself if it was an input)
+    let displayFutureValue: number | undefined; 
+    let finalTotalInterest: number | undefined;
+    let finalTotalContributions: number | undefined;
 
     try {
         if (currentCalculationMode === 'futureValue') {
-            // Inputs are projInitialInvestment, projMonthlyContribution, projInterestRate, projInvestmentDuration
-            console.log("[Future Value Mode] Inputs:", { projInitialInvestment, projMonthlyContribution, projInterestRate, projInvestmentDuration });
+            console.log("[Future Value Mode] Validating inputs:", { projInitialInvestment, projMonthlyContribution, projInterestRate, projInvestmentDuration });
             if (projInitialInvestment === undefined || projMonthlyContribution === undefined || projInterestRate === undefined || projInvestmentDuration === undefined) {
                 toast({ title: "Input Error", description: "For 'Future Value' calculation, please fill all investment parameters.", variant: "destructive" });
                 return;
             }
+            // All inputs are direct, proj variables are already set
         } else if (currentCalculationMode === 'calculateMonthlyContribution') {
-            console.log("[Calc MC Mode] Inputs from form:", { initial: projInitialInvestment, rate: projInterestRate, duration: projInvestmentDuration, target: inputTargetFutureValue });
-            if (projInitialInvestment === undefined || projInterestRate === undefined || projInvestmentDuration === undefined || inputTargetFutureValue === undefined) {
+            console.log("[Calc MC Mode] Validating inputs from form:", { projInitialInvestment, projInterestRate, projInvestmentDuration, projTargetFutureValue });
+            if (projInitialInvestment === undefined || projInterestRate === undefined || projInvestmentDuration === undefined || projTargetFutureValue === undefined) {
                 toast({ title: "Input Error", description: "To calculate Monthly Contribution, please fill: Initial Investment, Interest Rate, Investment Duration, and Target Future Value.", variant: "destructive" });
                 return;
+            }
+            if (projInvestmentDuration <= 0) {
+                toast({title: "Input Error", description: "Investment duration must be positive.", variant: "destructive"}); return;
             }
 
             const i = (projInterestRate / 100) / 12; // Monthly interest rate decimal
@@ -224,35 +237,35 @@ export default function InvestmentCalculatorPage() {
             let calculatedMC: number;
 
             if (N === 0) {
-                 toast({ title: "Calculation Error", description: "Investment duration is too short or zero for this calculation.", variant: "destructive" }); return;
+                 toast({ title: "Calculation Error", description: "Investment duration is too short (0 months) for this calculation.", variant: "destructive" }); return;
             }
             if (i === 0) { // No interest
-                calculatedMC = (inputTargetFutureValue - projInitialInvestment) / N;
+                calculatedMC = (projTargetFutureValue - projInitialInvestment) / N;
             } else {
                 const futureValueOfInitial = projInitialInvestment * Math.pow(1 + i, N);
                 const denominator = (Math.pow(1 + i, N) - 1);
-                if (denominator === 0) { 
-                    toast({ title: "Calculation Error", description: "Cannot calculate monthly contribution with these parameters (potential division by zero).", variant: "destructive" }); return;
+                if (Math.abs(denominator) < 1e-9) {  // Denominator is too close to zero
+                    toast({ title: "Calculation Error", description: "Cannot calculate monthly contribution with these parameters (potential division by zero, check interest rate and duration).", variant: "destructive" }); return;
                 }
-                calculatedMC = (inputTargetFutureValue - futureValueOfInitial) * i / denominator;
+                calculatedMC = (projTargetFutureValue - futureValueOfInitial) * i / denominator;
             }
 
             if (calculatedMC < 0 || !isFinite(calculatedMC)) {
-                toast({title: "Calculation Alert", description: "Target is unachievable with positive contributions or calculation is invalid. Consider adjusting parameters.", variant: "destructive"});
-                calculatedMC = 0; 
+                toast({title: "Calculation Alert", description: "Target is unachievable with positive contributions or calculation is invalid. Consider adjusting parameters.", variant: "default"});
+                // Setting to 0 to allow projection, but user is alerted.
+                // Or you could return here if you don't want to project with 0.
+                 projMonthlyContribution = 0;
+                 resultsCalculatedMonthlyContribution = 0;
+            } else {
+                resultsCalculatedMonthlyContribution = parseFloat(calculatedMC.toFixed(2));
+                projMonthlyContribution = resultsCalculatedMonthlyContribution; // Use calculated for projection
             }
-            resultsCalculatedMonthlyContribution = parseFloat(calculatedMC.toFixed(2));
-            console.log("[Calc MC Mode] Calculated MC:", resultsCalculatedMonthlyContribution);
-            form.setValue('monthlyContribution', resultsCalculatedMonthlyContribution, { shouldValidate: true });
-            
-            // For full projection, use the calculated monthly contribution
-            projMonthlyContribution = resultsCalculatedMonthlyContribution;
-            // Other params for projection remain as they were input for this mode
-            // projInitialInvestment, projInterestRate, projInvestmentDuration are already set from form
+            console.log("[Calc MC Mode] Calculated MC:", resultsCalculatedMonthlyContribution, "Using this for projection:", projMonthlyContribution);
+            form.setValue('monthlyContribution', projMonthlyContribution, { shouldValidate: false }); // Update form for display if needed
 
         } else if (currentCalculationMode === 'calculateInvestmentDuration') {
-            console.log("[Calc Duration Mode] Inputs from form:", { initial: projInitialInvestment, monthly: projMonthlyContribution, rate: projInterestRate, target: inputTargetFutureValue });
-            if (projInitialInvestment === undefined || projMonthlyContribution === undefined || projInterestRate === undefined || inputTargetFutureValue === undefined) {
+            console.log("[Calc Duration Mode] Validating inputs from form:", { projInitialInvestment, projMonthlyContribution, projInterestRate, projTargetFutureValue });
+            if (projInitialInvestment === undefined || projMonthlyContribution === undefined || projInterestRate === undefined || projTargetFutureValue === undefined) {
                 toast({ title: "Input Error", description: "To calculate Investment Duration, please fill: Initial Investment, Monthly Contribution, Interest Rate, and Target Future Value.", variant: "destructive" });
                 return;
             }
@@ -260,25 +273,21 @@ export default function InvestmentCalculatorPage() {
             const i = (projInterestRate / 100) / 12; // Monthly interest rate decimal
             let calculatedID_N_periods: number | undefined; 
 
-            if (inputTargetFutureValue <= projInitialInvestment && projMonthlyContribution <= 0) {
-                toast({ title: "Calculation Error", description: "Target value must be greater than initial investment if contributions are zero or negative.", variant: "destructive" }); return;
-            }
-
-            if (i === 0) { 
+            if (projTargetFutureValue <= projInitialInvestment && projMonthlyContribution <= 0) {
+                toast({ title: "Calculation Info", description: "Target value is already met or exceeded by initial investment with no positive contributions. Duration is 0.", variant: "default" });
+                projInvestmentDuration = 0;
+                resultsCalculatedInvestmentDuration = 0;
+            } else if (i === 0) { 
                 if (projMonthlyContribution <= 0) {
-                    if (inputTargetFutureValue > projInitialInvestment) {
-                        toast({ title: "Calculation Error", description: "Cannot reach target with 0% interest and no (or negative) contributions.", variant: "destructive" }); return;
-                    }
-                    calculatedID_N_periods = 0; 
-                } else {
-                    calculatedID_N_periods = (inputTargetFutureValue - projInitialInvestment) / projMonthlyContribution;
+                     toast({ title: "Calculation Error", description: "Cannot reach target with 0% interest and no (or negative) contributions if target > initial.", variant: "destructive" }); return;
                 }
+                calculatedID_N_periods = (projTargetFutureValue - projInitialInvestment) / projMonthlyContribution;
             } else { 
-                const valForLogNumerator = (inputTargetFutureValue * i + projMonthlyContribution);
+                const valForLogNumerator = (projTargetFutureValue * i + projMonthlyContribution);
                 const valForLogDenominator = (projInitialInvestment * i + projMonthlyContribution);
 
-                if (valForLogDenominator === 0) {
-                     toast({ title: "Calculation Error", description: "Cannot calculate duration due to division by zero. Check parameters.", variant: "destructive" }); return;
+                if (Math.abs(valForLogDenominator) < 1e-9) {
+                     toast({ title: "Calculation Error", description: "Cannot calculate duration due to division by zero (initial + monthly/rate is zero). Check parameters.", variant: "destructive" }); return;
                 }
                 const valForLog = valForLogNumerator / valForLogDenominator;
 
@@ -286,25 +295,27 @@ export default function InvestmentCalculatorPage() {
                     toast({ title: "Calculation Error", description: "Cannot calculate duration. Investment may not grow to target or parameters lead to invalid math (non-positive log argument).", variant: "destructive" }); return;
                 }
                  if (Math.abs(Math.log(1+i)) < 1e-9) { 
-                    toast({ title: "Calculation Error", description: "Interest rate is too close to zero for logarithmic calculation of duration.", variant: "destructive" }); return;
+                    toast({ title: "Calculation Error", description: "Interest rate is effectively zero for logarithmic calculation of duration. Try a non-zero rate or check other inputs.", variant: "destructive" }); return;
                  }
                 calculatedID_N_periods = Math.log(valForLog) / Math.log(1 + i);
             }
 
             if (calculatedID_N_periods === undefined || calculatedID_N_periods < 0 || !isFinite(calculatedID_N_periods)) {
-                toast({title: "Calculation Alert", description: "Target is likely unachievable or calculation resulted in an invalid duration. Please check parameters.", variant: "destructive"});
-                return;
+                 if (calculatedID_N_periods !== 0) { // Allow 0 duration if already calculated
+                    toast({title: "Calculation Alert", description: "Target is likely unachievable or calculation resulted in an invalid duration. Please check parameters.", variant: "default"});
+                    return; // Or set a default/error state
+                 }
             }
-            resultsCalculatedInvestmentDuration = parseFloat((calculatedID_N_periods / 12).toFixed(2));
-            console.log("[Calc Duration Mode] Calculated Duration (Years):", resultsCalculatedInvestmentDuration);
-            form.setValue('investmentDuration', resultsCalculatedInvestmentDuration, { shouldValidate: true });
-            
+            // Ensure projInvestmentDuration is set even if calculatedID_N_periods was 0 from the start
+            resultsCalculatedInvestmentDuration = calculatedID_N_periods !== undefined ? parseFloat((calculatedID_N_periods / 12).toFixed(2)) : 0;
             projInvestmentDuration = resultsCalculatedInvestmentDuration;
-            // projInitialInvestment, projMonthlyContribution, projInterestRate are already set
+
+            console.log("[Calc Duration Mode] Calculated Duration (Years):", resultsCalculatedInvestmentDuration);
+            form.setValue('investmentDuration', projInvestmentDuration, { shouldValidate: false });
 
         } else if (currentCalculationMode === 'calculateInterestRate') {
-            console.log("[Calc IR Mode] Inputs from form:", { initial: projInitialInvestment, monthly: projMonthlyContribution, duration: projInvestmentDuration, target: inputTargetFutureValue });
-            if (projInitialInvestment === undefined || projMonthlyContribution === undefined || projInvestmentDuration === undefined || inputTargetFutureValue === undefined) {
+            console.log("[Calc IR Mode] Validating inputs from form:", { projInitialInvestment, projMonthlyContribution, projInvestmentDuration, projTargetFutureValue });
+            if (projInitialInvestment === undefined || projMonthlyContribution === undefined || projInvestmentDuration === undefined || projTargetFutureValue === undefined) {
                 toast({ title: "Input Error", description: "To calculate Interest Rate, please fill: Initial Investment, Monthly Contribution, Investment Duration, and Target Future Value.", variant: "destructive" });
                 return;
             }
@@ -313,70 +324,74 @@ export default function InvestmentCalculatorPage() {
             }
 
             const N = projInvestmentDuration * 12; 
-            let low_r_annual = 0.0;    
-            let high_r_annual = 1.0; // Search annual rate from 0% to 100% (decimal form)
-            let mid_r_monthly;
+            let low_r_annual_decimal = 0.0;    
+            let high_r_annual_decimal = 5.0; // Search annual rate from 0% to 500%
+            let mid_r_monthly_decimal;
             let fv_at_mid_r;
-            let iterations = 0;
             const max_iterations = 100;
-            const tolerance = 0.01; // Tolerance for future value difference
+            const tolerance_fv_diff = 0.01; // Tolerance for future value difference
+            const tolerance_rate_diff = 1e-7; // Tolerance for rate convergence
             let calculatedAnnualIRDecimal: number | undefined;
 
             const totalContributionsOnly = projInitialInvestment + projMonthlyContribution * N;
-            if (inputTargetFutureValue < totalContributionsOnly - tolerance) { // Target less than contributions
-                 toast({ title: "Target Value Alert", description: "Target value is less than total contributions. A negative interest rate would be required, which is not supported.", variant: "default" });
-                 calculatedAnnualIRDecimal = 0; // Default to 0 or handle as error
-            } else if (Math.abs(inputTargetFutureValue - totalContributionsOnly) < tolerance) { // Target equals contributions
+            
+            if (projTargetFutureValue < totalContributionsOnly - tolerance_fv_diff) { 
+                 toast({ title: "Target Value Alert", description: "Target value is less than total contributions. A negative interest rate would be required, which is not supported. Setting rate to 0%.", variant: "default" });
                  calculatedAnnualIRDecimal = 0; 
-            } else { // Target is greater than contributions, proceed with search
-                for (iterations = 0; iterations < max_iterations; iterations++) {
-                    mid_r_monthly = (low_r_annual + high_r_annual) / 2 / 12; 
+            } else if (Math.abs(projTargetFutureValue - totalContributionsOnly) < tolerance_fv_diff) { 
+                 calculatedAnnualIRDecimal = 0; 
+            } else { 
+                for (let iter = 0; iter < max_iterations; iter++) {
+                    mid_r_monthly_decimal = (low_r_annual_decimal + high_r_annual_decimal) / 2 / 12; 
 
-                    if (Math.abs(mid_r_monthly) < 1e-9) { 
+                    if (Math.abs(mid_r_monthly_decimal) < 1e-9) { 
                         fv_at_mid_r = projInitialInvestment + projMonthlyContribution * N;
                     } else {
-                        fv_at_mid_r = projInitialInvestment * Math.pow(1 + mid_r_monthly, N) +
-                                    projMonthlyContribution * (Math.pow(1 + mid_r_monthly, N) - 1) / mid_r_monthly;
+                        fv_at_mid_r = projInitialInvestment * Math.pow(1 + mid_r_monthly_decimal, N) +
+                                    projMonthlyContribution * (Math.pow(1 + mid_r_monthly_decimal, N) - 1) / mid_r_monthly_decimal;
                     }
 
-                    if (Math.abs(fv_at_mid_r - inputTargetFutureValue) < tolerance) {
-                        calculatedAnnualIRDecimal = mid_r_monthly * 12;
+                    if (Math.abs(fv_at_mid_r - projTargetFutureValue) < tolerance_fv_diff) {
+                        calculatedAnnualIRDecimal = mid_r_monthly_decimal * 12;
                         break;
                     }
 
-                    if (fv_at_mid_r < inputTargetFutureValue) {
-                        low_r_annual = mid_r_monthly * 12 ; 
+                    if (fv_at_mid_r < projTargetFutureValue) {
+                        low_r_annual_decimal = mid_r_monthly_decimal * 12 ; 
                     } else {
-                        high_r_annual = mid_r_monthly * 12; 
+                        high_r_annual_decimal = mid_r_monthly_decimal * 12; 
                     }
-                     if (Math.abs(high_r_annual - low_r_annual) < 1e-7) { // Convergence check for rate itself
-                        calculatedAnnualIRDecimal = (low_r_annual + high_r_annual) / 2;
+                     if (Math.abs(high_r_annual_decimal - low_r_annual_decimal) < tolerance_rate_diff) { 
+                        calculatedAnnualIRDecimal = (low_r_annual_decimal + high_r_annual_decimal) / 2;
                         break;
                      }
                 }
-                 if (calculatedAnnualIRDecimal === undefined && iterations === max_iterations) { 
-                     // Could not converge, use best estimate if close enough, otherwise indicate error
-                     mid_r_monthly = (low_r_annual + high_r_annual) / 2 / 12;
-                     fv_at_mid_r = projInitialInvestment * Math.pow(1 + mid_r_monthly, N) +
-                                    projMonthlyContribution * (Math.pow(1 + mid_r_monthly, N) - 1) / mid_r_monthly;
-                     if (Math.abs(fv_at_mid_r - inputTargetFutureValue) < tolerance * 100) { // Looser tolerance
-                        calculatedAnnualIRDecimal = mid_r_monthly * 12;
+                 if (calculatedAnnualIRDecimal === undefined ) { 
+                     // Fallback if max_iterations reached without perfect convergence
+                     mid_r_monthly_decimal = (low_r_annual_decimal + high_r_annual_decimal) / 2 / 12;
+                     fv_at_mid_r = projInitialInvestment * Math.pow(1 + mid_r_monthly_decimal, N) +
+                                    projMonthlyContribution * (Math.pow(1 + mid_r_monthly_decimal, N) - 1) / mid_r_monthly_decimal;
+                     if (Math.abs(fv_at_mid_r - projTargetFutureValue) < tolerance_fv_diff * 100) { // Looser tolerance for fallback
+                        calculatedAnnualIRDecimal = mid_r_monthly_decimal * 12;
+                     } else {
+                        toast({title: "Calculation Alert", description: "Could not determine a reasonable interest rate. Target might be unachievable or parameters are extreme. Max iterations reached.", variant: "destructive"});
+                        return;
                      }
                  }
             }
-
-            if (calculatedAnnualIRDecimal === undefined || calculatedAnnualIRDecimal < 0 || calculatedAnnualIRDecimal > 5  || !isFinite(calculatedAnnualIRDecimal)) { // Cap rate at 500% as sanity
-                 toast({title: "Calculation Alert", description: "Could not determine a reasonable interest rate (0-500%). Target might be unachievable or parameters are extreme.", variant: "destructive"});
+            
+            if (calculatedAnnualIRDecimal === undefined || calculatedAnnualIRDecimal < 0 || calculatedAnnualIRDecimal > 5 || !isFinite(calculatedAnnualIRDecimal)) { 
+                 toast({title: "Calculation Alert", description: "Calculated interest rate is unreasonable (not 0-500%) or invalid.", variant: "destructive"});
                  return;
             }
             resultsCalculatedInterestRate = parseFloat((calculatedAnnualIRDecimal * 100).toFixed(2));
+            projInterestRate = resultsCalculatedInterestRate; // Use calculated for projection
             console.log("[Calc IR Mode] Calculated IR (%):", resultsCalculatedInterestRate);
-            form.setValue('interestRate', resultsCalculatedInterestRate, { shouldValidate: true });
-            
-            projInterestRate = resultsCalculatedInterestRate;
-            // projInitialInvestment, projMonthlyContribution, projInvestmentDuration are already set
+            form.setValue('interestRate', projInterestRate, { shouldValidate: false });
         }
 
+        // At this point, all proj... variables should hold the complete set of parameters
+        // (either directly from form or calculated by the mode) needed for full projection.
         console.log("Parameters for calculateFullProjection (after mode-specific calcs):", {
             initial: projInitialInvestment,
             monthly: projMonthlyContribution,
@@ -387,7 +402,7 @@ export default function InvestmentCalculatorPage() {
         if (projInitialInvestment === undefined || isNaN(projInitialInvestment) ||
             projMonthlyContribution === undefined || isNaN(projMonthlyContribution) ||
             projInterestRate === undefined || isNaN(projInterestRate) ||
-            projInvestmentDuration === undefined || isNaN(projInvestmentDuration) ) {
+            projInvestmentDuration === undefined || isNaN(projInvestmentDuration) || projInvestmentDuration < 0 ) { // Duration can't be negative
           toast({ title: "Projection Error", description: "One or more core parameters are missing or invalid for projection after mode-specific calculations. Cannot project.", variant: "destructive" });
           setResults(null);
           setYearlyData([]);
@@ -408,14 +423,18 @@ export default function InvestmentCalculatorPage() {
           yearlyDataLength: projection.yearlyData.length,
         });
 
+        displayFutureValue = (currentCalculationMode !== 'futureValue' && projTargetFutureValue !== undefined) ? projTargetFutureValue : projection.futureValue;
+        finalTotalInterest = projection.totalInterest;
+        finalTotalContributions = projection.totalContributions;
+        
         const resultsToSet: CalculationResults = {
-            futureValue: (currentCalculationMode !== 'futureValue' && originalTargetFutureValueForDisplay !== undefined) ? originalTargetFutureValueForDisplay : projection.futureValue,
-            totalInterest: projection.totalInterest,
-            totalContributions: projection.totalContributions,
+            futureValue: displayFutureValue,
+            totalInterest: finalTotalInterest,
+            totalContributions: finalTotalContributions,
             calculatedMonthlyContribution: resultsCalculatedMonthlyContribution,
             calculatedInterestRate: resultsCalculatedInterestRate,
             calculatedInvestmentDuration: resultsCalculatedInvestmentDuration,
-            originalTargetFutureValue: originalTargetFutureValueForDisplay,
+            originalTargetFutureValue: (currentCalculationMode !== 'futureValue') ? projTargetFutureValue : undefined,
         };
         console.log("Setting results state with:", JSON.parse(JSON.stringify(resultsToSet)));
         setResults(resultsToSet);
@@ -423,19 +442,18 @@ export default function InvestmentCalculatorPage() {
         console.log("Setting yearlyData state with (length):", projection.yearlyData.length);
         setYearlyData(projection.yearlyData);
         
-        setAiTips([]); // Reset AI tips, will be fetched in useEffect
+        setAiTips([]); 
 
         const formInputsForAICopy = {
             initialInvestment: projInitialInvestment,
             monthlyContribution: projMonthlyContribution,
             interestRate: projInterestRate,
             investmentDuration: projInvestmentDuration,
-            targetFutureValue: originalTargetFutureValueForDisplay, // Use the target if it was an input
+            targetFutureValue: (currentCalculationMode !== 'futureValue') ? projTargetFutureValue : undefined,
             calculationMode: currentCalculationMode
         };
         console.log("Setting formInputsForAI state with:", JSON.parse(JSON.stringify(formInputsForAICopy)));
         setFormInputsForAI(formInputsForAICopy);
-
 
     } catch (error) {
         console.error("Calculation Error in onSubmit:", error);
@@ -447,30 +465,16 @@ export default function InvestmentCalculatorPage() {
     }
   };
 
-  useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      if (name === 'calculationMode') {
-        const newMode = value.calculationMode as CalculationMode;
-        setCalculationMode(newMode);
-         setResults(null);
-         setYearlyData([]);
-         setAiTips([]);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form]);
-
-
  useEffect(() => {
     if (results && formInputsForAI) {
       const allParamsPresentAndValid =
-          formInputsForAI.initialInvestment !== undefined && !isNaN(formInputsForAI.initialInvestment) &&
-          formInputsForAI.monthlyContribution !== undefined && !isNaN(formInputsForAI.monthlyContribution) &&
-          formInputsForAI.interestRate !== undefined && !isNaN(formInputsForAI.interestRate) &&
-          formInputsForAI.investmentDuration !== undefined && !isNaN(formInputsForAI.investmentDuration) &&
-          results.futureValue !== undefined && !isNaN(results.futureValue) &&
-          results.totalInterest !== undefined && !isNaN(results.totalInterest) &&
-          results.totalContributions !== undefined && !isNaN(results.totalContributions);
+          typeof formInputsForAI.initialInvestment === 'number' && !isNaN(formInputsForAI.initialInvestment) &&
+          typeof formInputsForAI.monthlyContribution === 'number' && !isNaN(formInputsForAI.monthlyContribution) &&
+          typeof formInputsForAI.interestRate === 'number' && !isNaN(formInputsForAI.interestRate) &&
+          typeof formInputsForAI.investmentDuration === 'number' && !isNaN(formInputsForAI.investmentDuration) &&
+          typeof results.futureValue === 'number' && !isNaN(results.futureValue) &&
+          typeof results.totalInterest === 'number' && !isNaN(results.totalInterest) &&
+          typeof results.totalContributions === 'number' && !isNaN(results.totalContributions);
 
       if (!allParamsPresentAndValid) {
           setIsLoadingTips(false);
@@ -487,7 +491,7 @@ export default function InvestmentCalculatorPage() {
             monthlyContribution: formInputsForAI.monthlyContribution!,
             interestRate: formInputsForAI.interestRate!,
             investmentDuration: formInputsForAI.investmentDuration!,
-            futureValue: results.futureValue, // This should be the actual projected FV or the target if calc mode
+            futureValue: results.futureValue, 
             totalInterest: results.totalInterest,
             totalContributions: results.totalContributions,
           };
@@ -509,7 +513,7 @@ export default function InvestmentCalculatorPage() {
              toast({
                title: "AI Tips",
                description: "No specific tips were generated for this scenario.",
-               variant: "default"
+               variant: "default",
              });
           }
         } catch (error) {
@@ -530,21 +534,23 @@ export default function InvestmentCalculatorPage() {
   }, [results, formInputsForAI]); 
 
   useEffect(() => {
-    if (yearlyData.length > 0 && formInputsForAI && formInputsForAI.initialInvestment !== undefined) {
+    if (yearlyData.length > 0 && formInputsForAI && typeof formInputsForAI.initialInvestment === 'number') {
         const baseContributions = formInputsForAI.initialInvestment;
         
         const newChartData = yearlyData.map(data => {
+          // Calculate cumulative contributions up to the END of data.year
+          // This includes initial investment + all yearly contributions up to and including the current year's data.contributions
           const cumulativeContributionsUpToThisYearEnd = baseContributions + yearlyData
-            .slice(0, yearlyData.findIndex(y => y.year === data.year) +1) // Ensure we sum up to and including current year's contributions
-            .reduce((acc, curr) => acc + curr.contributions, 0);
+            .slice(0, yearlyData.findIndex(y => y.year === data.year) +1) 
+            .reduce((acc, curr) => acc + (curr.contributions || 0), 0); // Ensure contributions is not NaN
           
           const interestAccumulatedUpToThisYearEnd = data.endingBalance - cumulativeContributionsUpToThisYearEnd;
 
         return {
-          name: `Year ${data.year}`,
+          name: `Year ${Math.floor(data.year)}`, // Ensure year is an integer for display
           totalValue: data.endingBalance,
           amountInvested: cumulativeContributionsUpToThisYearEnd,
-          interestAccumulated: interestAccumulatedUpToThisYearEnd,
+          interestAccumulated: interestAccumulatedUpToThisYearEnd < 0 ? 0 : interestAccumulatedUpToThisYearEnd, // Interest shouldn't be negative on chart
         };
       });
       setChartDisplayData(newChartData);
@@ -552,6 +558,8 @@ export default function InvestmentCalculatorPage() {
       setChartDisplayData([]);
     }
   }, [yearlyData, formInputsForAI]);
+
+  console.log('Rendering with calculationMode:', calculationMode); // DEBUG LOG FOR VISIBILITY
 
   return (
     <div className="container mx-auto p-4 md:p-8 flex flex-col items-center">
@@ -575,8 +583,15 @@ export default function InvestmentCalculatorPage() {
                     value={calculationMode}
                     onValueChange={(value) => {
                       const newMode = value as CalculationMode;
-                      form.setValue('calculationMode', newMode, { shouldValidate: true });
-                      // Resetting results when mode changes is handled by the watch effect
+                      console.log("[Tabs onValueChange] Tab changed to:", newMode);
+                      setCalculationMode(newMode); // Directly set local state for UI
+                      form.setValue('calculationMode', newMode, { shouldValidate: true }); // Sync with RHF state
+                      setResults(null);
+                      setYearlyData([]);
+                      setAiTips([]);
+                      setFormInputsForAI(null); 
+                      // Optional: Reset specific form fields to defaults or clear them
+                      // form.resetField('monthlyContribution'); // Example if you want to clear
                     }}
                     className="mb-6"
                   >
@@ -601,7 +616,7 @@ export default function InvestmentCalculatorPage() {
                               type="text"
                               placeholder="e.g., 1,000,000"
                               value={field.value === undefined || field.value === null || field.value === '' ? '' : formatForDisplay(Number(field.value))}
-                              onChange={(e) => field.onChange(parseInput(e.target.value))}
+                              onChange={(e) => field.onChange(parseNumericInput(e.target.value))}
                               onBlur={field.onBlur}
                               name={field.name}
                               ref={field.ref}
@@ -625,7 +640,7 @@ export default function InvestmentCalculatorPage() {
                             type="text"
                             placeholder="e.g., 1,000"
                             value={field.value === undefined || field.value === null || field.value === '' ? '' : formatForDisplay(Number(field.value))}
-                             onChange={(e) => field.onChange(parseInput(e.target.value))}
+                             onChange={(e) => field.onChange(parseNumericInput(e.target.value))}
                             onBlur={field.onBlur}
                             name={field.name}
                             ref={field.ref}
@@ -651,7 +666,7 @@ export default function InvestmentCalculatorPage() {
                               type="text" 
                               placeholder="e.g., 100"
                               value={field.value === undefined || field.value === null || field.value === '' ? '' : formatForDisplay(Number(field.value))}
-                              onChange={(e) => field.onChange(parseInput(e.target.value))}
+                              onChange={(e) => field.onChange(parseNumericInput(e.target.value))}
                               onBlur={field.onBlur}
                               name={field.name}
                               ref={field.ref}
@@ -674,9 +689,9 @@ export default function InvestmentCalculatorPage() {
                             Annual Interest Rate (%)
                           </FormLabel>
                           <FormControl>
-                            <Input type="number" step="any" placeholder="e.g., 7"
-                              onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                              value={field.value === undefined ? '' : field.value}
+                            <Input type="text" placeholder="e.g., 7"
+                              onChange={e => field.onChange(parseNumericInput(e.target.value))}
+                              value={field.value === undefined || field.value === null ? '' : String(field.value)}
                               className="text-base"
                               name={field.name}
                               ref={field.ref}
@@ -699,9 +714,9 @@ export default function InvestmentCalculatorPage() {
                             Investment Duration (Years)
                           </FormLabel>
                           <FormControl>
-                            <Input type="number" step="any" placeholder="e.g., 10"
-                            onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                            value={field.value === undefined ? '' : field.value}
+                            <Input type="text" placeholder="e.g., 10"
+                            onChange={e => field.onChange(parseNumericInput(e.target.value))}
+                            value={field.value === undefined || field.value === null ? '' : String(field.value)}
                             className="text-base"
                             name={field.name}
                             ref={field.ref}
@@ -725,8 +740,7 @@ export default function InvestmentCalculatorPage() {
 
       {results && (
         <div className="w-full max-w-5xl space-y-10 mt-12">
-          {chartDisplayData.length > 0 && (
-            <Card className="w-full shadow-2xl shadow-primary/20">
+           <Card className="w-full shadow-2xl shadow-primary/20">
               <CardHeader>
                 <CardTitle className="text-2xl font-headline text-primary flex items-center">
                   <AreaChart className="mr-2 h-7 w-7" /> Investment Growth Chart
@@ -734,28 +748,32 @@ export default function InvestmentCalculatorPage() {
                 <CardDescription>Visual representation of your investment growth over time.</CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                <ChartContainer config={chartConfig} className="min-h-[300px] w-full aspect-video">
-                  <ComposedChart data={chartDisplayData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} padding={{ left: 10, right: 10 }} />
-                    <YAxis tickFormatter={(value) => formatCurrency(value)} tickLine={false} axisLine={false} tickMargin={8} width={90} />
-                     <RechartsTooltip
-                      cursor={{ strokeDasharray: '3 3' }}
-                      itemSorter={(item) => tooltipOrder.indexOf(item.dataKey as keyof ChartDisplayDataItem)}
-                      content={<ChartTooltipContent formatter={(value) => formatCurrency(value as number)} labelClassName="font-bold" indicator="dot" />}
-                    />
-                    <RechartsLegend content={<ChartLegendContent />} />
-                    <RechartsLine key="totalValue" dataKey="totalValue" type="monotone" stroke="var(--color-totalValue)" strokeWidth={3} dot={{ r: 4, fillOpacity: 1 }} name={chartConfig.totalValue.label} />
-                    <RechartsLine key="amountInvested" dataKey="amountInvested" type="monotone" stroke="var(--color-amountInvested)" strokeWidth={2} dot={false} name={chartConfig.amountInvested.label} />
-                    <RechartsLine key="interestAccumulated" dataKey="interestAccumulated" type="monotone" stroke="var(--color-interestAccumulated)" strokeWidth={2} dot={false} name={chartConfig.interestAccumulated.label} />
-                  </ComposedChart>
-                </ChartContainer>
+                {chartDisplayData.length > 0 ? (
+                    <ChartContainer config={chartConfig} className="min-h-[300px] w-full aspect-video">
+                    <ComposedChart data={chartDisplayData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                        <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} padding={{ left: 10, right: 10 }} />
+                        <YAxis tickFormatter={(value) => formatCurrency(value)} tickLine={false} axisLine={false} tickMargin={8} width={90} />
+                        <RechartsTooltip
+                        cursor={{ strokeDasharray: '3 3' }}
+                        itemSorter={(item) => tooltipOrder.indexOf(item.dataKey as keyof ChartDisplayDataItem)}
+                        content={<ChartTooltipContent formatter={(value) => formatCurrency(value as number)} labelClassName="font-bold" indicator="dot" />}
+                        />
+                        <RechartsLegend content={<ChartLegendContent />} />
+                        <RechartsLine key="totalValue" dataKey="totalValue" type="monotone" stroke="var(--color-totalValue)" strokeWidth={3} dot={{ r: 4, fillOpacity: 1 }} name={chartConfig.totalValue.label} />
+                        <RechartsLine key="amountInvested" dataKey="amountInvested" type="monotone" stroke="var(--color-amountInvested)" strokeWidth={2} dot={false} name={chartConfig.amountInvested.label} />
+                        <RechartsLine key="interestAccumulated" dataKey="interestAccumulated" type="monotone" stroke="var(--color-interestAccumulated)" strokeWidth={2} dot={false} name={chartConfig.interestAccumulated.label} />
+                    </ComposedChart>
+                    </ChartContainer>
+                ) : (
+                    <p className="text-center text-muted-foreground">No chart data available. Please check your inputs or calculation results.</p>
+                )}
               </CardContent>
             </Card>
-          )}
+          
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-            {yearlyData.length > 0 && (
+            {yearlyData.length > 0 ? (
               <Card className="shadow-2xl shadow-primary/20">
                 <CardHeader>
                   <CardTitle className="text-2xl font-headline text-primary flex items-center">
@@ -767,6 +785,7 @@ export default function InvestmentCalculatorPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-primary">Year</TableHead>
+                        {/* Starting Balance column removed */}
                         <TableHead className="text-primary">Contributions This Year</TableHead>
                         <TableHead className="text-primary">Interest Earned This Year</TableHead>
                         <TableHead className="text-primary">Ending Balance</TableHead>
@@ -785,6 +804,11 @@ export default function InvestmentCalculatorPage() {
                   </Table>
                 </CardContent>
               </Card>
+            ) : (
+                 <Card className="shadow-2xl shadow-primary/20">
+                    <CardHeader><CardTitle className="text-2xl font-headline text-primary">Yearly Projection</CardTitle></CardHeader>
+                    <CardContent><p className="text-muted-foreground">No yearly data to display.</p></CardContent>
+                 </Card>
             )}
 
             <Card className="shadow-2xl shadow-primary/20">
@@ -813,13 +837,7 @@ export default function InvestmentCalculatorPage() {
                         <p className="text-xl font-semibold">{formatCurrency(formInputsForAI.monthlyContribution)}</p>
                     </div>
                 )}
-                 {formInputsForAI?.calculationMode === 'calculateInterestRate' && formInputsForAI?.monthlyContribution !== undefined && (
-                    <div>
-                        <p className="text-muted-foreground">Monthly Contribution:</p>
-                        <p className="text-xl font-semibold">{formatCurrency(formInputsForAI.monthlyContribution)}</p>
-                    </div>
-                )}
-                 {formInputsForAI?.calculationMode === 'calculateInvestmentDuration' && formInputsForAI?.monthlyContribution !== undefined && (
+                 {(formInputsForAI?.calculationMode === 'calculateInterestRate' || formInputsForAI?.calculationMode === 'calculateInvestmentDuration') && formInputsForAI?.monthlyContribution !== undefined && (
                     <div>
                         <p className="text-muted-foreground">Monthly Contribution:</p>
                         <p className="text-xl font-semibold">{formatCurrency(formInputsForAI.monthlyContribution)}</p>
@@ -827,19 +845,7 @@ export default function InvestmentCalculatorPage() {
                 )}
 
 
-                {formInputsForAI?.calculationMode === 'futureValue' && formInputsForAI?.interestRate !== undefined && (
-                    <div>
-                        <p className="text-muted-foreground">Annual Interest Rate:</p>
-                        <p className="text-xl font-semibold">{formatPercentage(formInputsForAI.interestRate)}</p>
-                    </div>
-                )}
-                 {formInputsForAI?.calculationMode === 'calculateMonthlyContribution' && formInputsForAI?.interestRate !== undefined && (
-                    <div>
-                        <p className="text-muted-foreground">Annual Interest Rate:</p>
-                        <p className="text-xl font-semibold">{formatPercentage(formInputsForAI.interestRate)}</p>
-                    </div>
-                )}
-                 {formInputsForAI?.calculationMode === 'calculateInvestmentDuration' && formInputsForAI?.interestRate !== undefined && (
+                {(formInputsForAI?.calculationMode === 'futureValue' || formInputsForAI?.calculationMode === 'calculateMonthlyContribution' || formInputsForAI?.calculationMode === 'calculateInvestmentDuration') && formInputsForAI?.interestRate !== undefined && (
                     <div>
                         <p className="text-muted-foreground">Annual Interest Rate:</p>
                         <p className="text-xl font-semibold">{formatPercentage(formInputsForAI.interestRate)}</p>
@@ -847,19 +853,7 @@ export default function InvestmentCalculatorPage() {
                 )}
 
 
-                {formInputsForAI?.calculationMode === 'futureValue' && formInputsForAI?.investmentDuration !== undefined && (
-                    <div>
-                        <p className="text-muted-foreground">Investment Duration:</p>
-                        <p className="text-xl font-semibold">{formatYears(formInputsForAI.investmentDuration)}</p>
-                    </div>
-                )}
-                 {formInputsForAI?.calculationMode === 'calculateMonthlyContribution' && formInputsForAI?.investmentDuration !== undefined && (
-                    <div>
-                        <p className="text-muted-foreground">Investment Duration:</p>
-                        <p className="text-xl font-semibold">{formatYears(formInputsForAI.investmentDuration)}</p>
-                    </div>
-                )}
-                 {formInputsForAI?.calculationMode === 'calculateInterestRate' && formInputsForAI?.investmentDuration !== undefined && (
+                {(formInputsForAI?.calculationMode === 'futureValue' || formInputsForAI?.calculationMode === 'calculateMonthlyContribution' || formInputsForAI?.calculationMode === 'calculateInterestRate') && formInputsForAI?.investmentDuration !== undefined && (
                     <div>
                         <p className="text-muted-foreground">Investment Duration:</p>
                         <p className="text-xl font-semibold">{formatYears(formInputsForAI.investmentDuration)}</p>
@@ -941,6 +935,5 @@ export default function InvestmentCalculatorPage() {
     </div>
   );
 }
-
 
     
