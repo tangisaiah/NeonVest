@@ -55,7 +55,7 @@ const formatForDisplay = (value: number | undefined | null): string => {
 const parseNumericInput = (inputValue: string | number | undefined | null): number | null => {
     if (inputValue === undefined || inputValue === null) return null;
     const stringValue = String(inputValue).trim();
-    if (stringValue === "") return null; // Return null for empty string
+    if (stringValue === "") return null; 
 
     const cleaned = stringValue.replace(/[^0-9.-]/g, '');
     if (cleaned === '' || cleaned === '.' || cleaned === '-' || cleaned === '-.') return null;
@@ -113,6 +113,11 @@ export default function InvestmentCalculatorPage() {
   const [formInputsForAI, setFormInputsForAI] = useState<InvestmentFormData | null>(null);
   const [chartDisplayData, setChartDisplayData] = useState<ChartDisplayDataItem[]>([]);
   const [calculationMode, setCalculationMode] = useState<CalculationMode>(defaultFormValues.calculationMode);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   const form = useForm<InvestmentFormData>({
     resolver: zodResolver(InvestmentFormSchema),
@@ -125,16 +130,12 @@ export default function InvestmentCalculatorPage() {
 
  const handleTabChange = (newMode: CalculationMode) => {
     console.log("[Tabs onValueChange] Tab changed to:", newMode);
-    setCalculationMode(newMode); // Update local state for UI rendering
+    setCalculationMode(newMode); 
 
-    // Reset all form fields to their defined defaults first
-    form.reset(defaultFormValues);
+    form.reset(defaultFormValues); 
     
-    // Then, explicitly set the new calculation mode
     form.setValue('calculationMode', newMode, { shouldValidate: false });
 
-    // Identify the field that will be the output for this mode and set it to null
-    // This ensures it's blank and ready for calculation.
     let outputFieldToNullify: keyof InvestmentFormData | null = null;
 
     if (newMode === 'calculateMonthlyContribution') {
@@ -149,21 +150,16 @@ export default function InvestmentCalculatorPage() {
         form.setValue(outputFieldToNullify, null, { shouldValidate: false });
     }
 
-    // If switching TO 'futureValue' mode, targetFutureValue is not an input, so ensure it's null.
-    // It's an input in other modes, where defaultFormValues would apply.
     if (newMode === 'futureValue') {
         form.setValue('targetFutureValue', null, { shouldValidate: false });
     }
     
-    // Clear previous results and UI states
     setResults(null);
     setYearlyData([]);
     setAiTips([]);
     setFormInputsForAI(null);
     setChartDisplayData([]);
 
-    // Trigger validation for the new form state.
-    // This allows Zod to validate based on the currently relevant fields and their values.
     form.trigger(); 
     console.log("Form values after tab change and updates:", form.getValues());
   };
@@ -241,7 +237,7 @@ export default function InvestmentCalculatorPage() {
   };
 
  const onSubmit: SubmitHandler<InvestmentFormData> = (data) => {
-    const currentCalculationModeFromForm = data.calculationMode || calculationMode; // Use mode from submitted data
+    const currentCalculationModeFromForm = data.calculationMode || calculationMode; 
     console.log("FORM SUBMITTED, raw data:", data, "Mode:", currentCalculationModeFromForm);
     
     let parsedInitialInvestment = parseNumericInput(data.initialInvestment);
@@ -283,7 +279,6 @@ export default function InvestmentCalculatorPage() {
         } else if (currentCalculationModeFromForm === 'calculateMonthlyContribution') {
             projInterestRate = parsedInterestRate;
             projInvestmentDuration = parsedInvestmentDuration;
-            // projTargetFutureValue is already set from parsedTargetFutureValue
             if (projInterestRate === null || projInvestmentDuration === null || projTargetFutureValue === null) {
                 toast({ title: "Input Error", description: "To calculate Monthly Contribution, please fill: Interest Rate, Investment Duration, and Target Future Value.", variant: "destructive" });
                 return;
@@ -324,7 +319,6 @@ export default function InvestmentCalculatorPage() {
         } else if (currentCalculationModeFromForm === 'calculateInvestmentDuration') {
             projMonthlyContribution = parsedMonthlyContribution;
             projInterestRate = parsedInterestRate;
-            // projTargetFutureValue is set
             if (projMonthlyContribution === null || projInterestRate === null || projTargetFutureValue === null) {
                 toast({ title: "Input Error", description: "To calculate Investment Duration, please fill: Monthly Contribution, Interest Rate, and Target Future Value.", variant: "destructive" });
                 return;
@@ -368,7 +362,7 @@ export default function InvestmentCalculatorPage() {
             }
             
             if (calculatedID_N_periods === undefined || calculatedID_N_periods < 0 || !isFinite(calculatedID_N_periods)) {
-                if (resultsCalculatedInvestmentDuration !== 0) { // Avoid toast if already set to 0
+                if (resultsCalculatedInvestmentDuration !== 0) { 
                     toast({title: "Calculation Alert", description: "Target is likely unachievable or calculation resulted in an invalid duration.", variant: "default"});
                     return; 
                 }
@@ -379,7 +373,6 @@ export default function InvestmentCalculatorPage() {
         } else if (currentCalculationModeFromForm === 'calculateInterestRate') {
             projMonthlyContribution = parsedMonthlyContribution;
             projInvestmentDuration = parsedInvestmentDuration;
-            // projTargetFutureValue is set
             if (projMonthlyContribution === null || projInvestmentDuration === null || projTargetFutureValue === null) {
                 toast({ title: "Input Error", description: "To calculate Interest Rate, please fill: Monthly Contribution, Investment Duration, and Target Future Value.", variant: "destructive" });
                 return;
@@ -391,12 +384,12 @@ export default function InvestmentCalculatorPage() {
 
             const N = projInvestmentDuration * 12; 
             let low_r_annual_decimal = 0.0;    
-            let high_r_annual_decimal = 5.0; // 500% initial high bound
+            let high_r_annual_decimal = 5.0; 
             let mid_r_monthly_decimal;
             let fv_at_mid_r;
             const max_iterations = 100;
             const tolerance_fv_diff = 0.01; 
-            const tolerance_rate_diff = 1e-7; // For rate convergence
+            const tolerance_rate_diff = 1e-7; 
             let calculatedAnnualIRDecimal: number | undefined;
 
             const totalContributionsOnly = projInitialInvestment + projMonthlyContribution * N;
@@ -410,7 +403,7 @@ export default function InvestmentCalculatorPage() {
                 for (let iter = 0; iter < max_iterations; iter++) {
                     mid_r_monthly_decimal = (low_r_annual_decimal + high_r_annual_decimal) / 2 / 12; 
 
-                    if (Math.abs(mid_r_monthly_decimal) < 1e-9) { // Effectively 0% interest for this iteration
+                    if (Math.abs(mid_r_monthly_decimal) < 1e-9) { 
                         fv_at_mid_r = projInitialInvestment + projMonthlyContribution * N;
                     } else {
                         fv_at_mid_r = projInitialInvestment * Math.pow(1 + mid_r_monthly_decimal, N) +
@@ -434,7 +427,7 @@ export default function InvestmentCalculatorPage() {
                      }
                 }
 
-                 if (calculatedAnnualIRDecimal === undefined ) { // If loop finished without exact convergence
+                 if (calculatedAnnualIRDecimal === undefined ) { 
                      mid_r_monthly_decimal = (low_r_annual_decimal + high_r_annual_decimal) / 2 / 12;
                      if (Math.abs(mid_r_monthly_decimal) < 1e-9) { 
                         fv_at_mid_r = projInitialInvestment + projMonthlyContribution * N;
@@ -442,8 +435,7 @@ export default function InvestmentCalculatorPage() {
                         fv_at_mid_r = projInitialInvestment * Math.pow(1 + mid_r_monthly_decimal, N) +
                                     projMonthlyContribution * (Math.pow(1 + mid_r_monthly_decimal, N) - 1) / mid_r_monthly_decimal;
                      }
-                     // Check if this "best guess" is close enough
-                     if (Math.abs(fv_at_mid_r - projTargetFutureValue) < tolerance_fv_diff * 100) { // Looser tolerance for final check
+                     if (Math.abs(fv_at_mid_r - projTargetFutureValue) < tolerance_fv_diff * 100) { 
                         calculatedAnnualIRDecimal = mid_r_monthly_decimal * 12;
                      } else {
                         toast({title: "Calculation Alert", description: "Could not determine a reasonable interest rate. Target might be unachievable or parameters are extreme.", variant: "destructive"});
@@ -489,7 +481,6 @@ export default function InvestmentCalculatorPage() {
         finalTotalInterest = projection.totalInterest;
         finalTotalContributions = projection.totalContributions;
         
-        // Set the calculated value back to the form field for display
         if (currentCalculationModeFromForm === 'calculateMonthlyContribution' && resultsCalculatedMonthlyContribution !== undefined) {
             form.setValue('monthlyContribution', resultsCalculatedMonthlyContribution, { shouldValidate: false });
         }
@@ -803,7 +794,7 @@ export default function InvestmentCalculatorPage() {
         </form>
       </Form>
 
-      {results && (
+      {isClient && results && (
         <div className="w-full max-w-5xl space-y-10 mt-12">
            <Card className="w-full shadow-2xl shadow-primary/20">
               <CardHeader>
@@ -813,26 +804,28 @@ export default function InvestmentCalculatorPage() {
                 <CardDescription>Visual representation of your investment growth over time.</CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                {chartDisplayData.length > 0 ? (
-                    <ChartContainer config={chartConfig} className="min-h-[300px] w-full aspect-video">
-                    <ComposedChart data={chartDisplayData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                        <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} padding={{ left: 10, right: 10 }} />
-                        <YAxis tickFormatter={(value) => formatCurrency(value)} tickLine={false} axisLine={false} tickMargin={8} width={90} />
-                        <RechartsTooltip
-                        cursor={{ strokeDasharray: '3 3' }}
-                        itemSorter={(item) => tooltipLineOrder.indexOf(item.dataKey as keyof ChartDisplayDataItem)}
-                        content={<ChartTooltipContent formatter={(value) => formatCurrency(value as number)} labelClassName="font-bold" indicator="dot" />}
-                        />
-                        <RechartsLegend content={<ChartLegendContent />} />
-                        <RechartsLine key="totalValue" dataKey="totalValue" type="monotone" stroke="var(--color-totalValue)" strokeWidth={3} dot={{ r: 4, fillOpacity: 1 }} name={chartConfig.totalValue.label} />
-                        <RechartsLine key="amountInvested" dataKey="amountInvested" type="monotone" stroke="var(--color-amountInvested)" strokeWidth={2} dot={false} name={chartConfig.amountInvested.label} />
-                        <RechartsLine key="interestAccumulated" dataKey="interestAccumulated" type="monotone" stroke="var(--color-interestAccumulated)" strokeWidth={2} dot={false} name={chartConfig.interestAccumulated.label} />
-                    </ComposedChart>
-                    </ChartContainer>
-                ) : (
-                    <p className="text-center text-muted-foreground">No chart data available. Please check your inputs or calculation results.</p>
-                )}
+                <div className="overflow-x-auto">
+                  {chartDisplayData.length > 0 ? (
+                      <ChartContainer config={chartConfig} className="min-h-[300px] w-full min-w-[600px] aspect-video">
+                      <ComposedChart data={chartDisplayData} margin={{ top: 5, right: 30, left: 30, bottom: 5 }}>
+                          <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                          <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} padding={{ left: 10, right: 10 }} />
+                          <YAxis tickFormatter={(value) => formatCurrency(value)} tickLine={false} axisLine={false} tickMargin={8} width={90} />
+                          <RechartsTooltip
+                          cursor={{ strokeDasharray: '3 3' }}
+                          itemSorter={(item) => tooltipLineOrder.indexOf(item.dataKey as keyof ChartDisplayDataItem)}
+                          content={<ChartTooltipContent formatter={(value) => formatCurrency(value as number)} labelClassName="font-bold" indicator="dot" />}
+                          />
+                          <RechartsLegend content={<ChartLegendContent />} />
+                          <RechartsLine key="totalValue" dataKey="totalValue" type="monotone" stroke="var(--color-totalValue)" strokeWidth={3} dot={{ r: 4, fillOpacity: 1 }} name={chartConfig.totalValue.label} />
+                          <RechartsLine key="amountInvested" dataKey="amountInvested" type="monotone" stroke="var(--color-amountInvested)" strokeWidth={2} dot={false} name={chartConfig.amountInvested.label} />
+                          <RechartsLine key="interestAccumulated" dataKey="interestAccumulated" type="monotone" stroke="var(--color-interestAccumulated)" strokeWidth={2} dot={false} name={chartConfig.interestAccumulated.label} />
+                      </ComposedChart>
+                      </ChartContainer>
+                  ) : (
+                      <p className="text-center text-muted-foreground">No chart data available. Please check your inputs or calculation results.</p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           
