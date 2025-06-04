@@ -13,10 +13,10 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const InvestmentTipsInputSchema = z.object({
-  initialInvestment: z.number().describe('The initial amount invested.'),
-  monthlyContribution: z.number().describe('The monthly contribution amount.'),
-  interestRate: z.number().describe('The annual interest rate (as a percentage).'),
-  investmentDuration: z.number().describe('The investment duration in years.'),
+  initialInvestment: z.number().min(0, "Initial investment must be zero or positive").max(1000000000, "Initial investment is too large (max 1B)").describe('The initial amount invested.'),
+  monthlyContribution: z.number().min(0, "Monthly contribution must be zero or positive").max(1000000, "Monthly contribution is too large (max 1M)").describe('The monthly contribution amount.'),
+  interestRate: z.number().min(0, "Interest rate must be zero or positive").max(100, "Interest rate cannot exceed 100%").describe('The annual interest rate (as a percentage).'),
+  investmentDuration: z.number().min(0, "Duration must be zero or positive").max(100, "Duration cannot exceed 100 years").describe('The investment duration in years.'),
   futureValue: z.number().describe('The calculated future value of the investment.'),
   totalInterest: z.number().describe('The total interest earned over the investment duration.'),
   totalContributions: z.number().describe('The total amount contributed over the investment duration.'),
@@ -42,6 +42,13 @@ const InvestmentTipsFlowOutputSchema = z.object({
 export type InvestmentTipsOutput = z.infer<typeof InvestmentTipsFlowOutputSchema>;
 
 export async function generateInvestmentTips(input: InvestmentTipsInput): Promise<InvestmentTipsOutput> {
+  // IMPORTANT: PRODUCTION CONSIDERATION - Implement Server-Side Rate Limiting
+  // To protect your AI model and manage costs, implement server-side rate limiting
+  // for this flow. This could involve:
+  // 1. Using an API Gateway with rate limiting features.
+  // 2. Integrating with a service like Redis to track request counts per user/IP.
+  // 3. Leveraging platform-specific features (e.g., Firebase Functions callable function quotas).
+  // Client-side measures are helpful for UX but not sufficient for robust protection.
   return generateInvestmentTipsFlow(input);
 }
 
@@ -87,10 +94,14 @@ const generateInvestmentTipsFlow = ai.defineFlow(
       console.error("Error in generateInvestmentTipsFlow during LLM call:", e);
       let errorMessage = "An unexpected error occurred while generating AI tips.";
       if (e instanceof Error) {
-        if (e.message.includes("503") || e.message.toLowerCase().includes("service unavailable") || e.message.toLowerCase().includes("model is overloaded")) {
-          errorMessage = "The AI model is currently overloaded. Please try again later.";
-        } else if (e.message.toLowerCase().includes("api key not valid")) {
-          errorMessage = "AI configuration error. Please check API key.";
+        if (e.message.includes("API key not valid")) {
+            errorMessage = "AI configuration error. Please check API key.";
+        } else if (e.message.includes("429") || e.message.toLowerCase().includes("resource has been exhausted") || e.message.toLowerCase().includes("rate limit exceeded")) {
+            errorMessage = "The AI model is experiencing high demand (rate limit reached). Please try again later.";
+        } else if (e.message.includes("503") || e.message.toLowerCase().includes("service unavailable") || e.message.toLowerCase().includes("model is overloaded")) {
+            errorMessage = "The AI model is currently overloaded or unavailable. Please try again later.";
+        } else if (e.message.includes("validation failed")) { // Catching Zod validation errors from Genkit
+            errorMessage = "There was an issue with the data sent to the AI. Please check your inputs.";
         }
         else {
            errorMessage = `Failed to generate tips.`; // Keep server error details from client
