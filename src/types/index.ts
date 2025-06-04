@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 export const CalculationModeSchema = z.enum([
   'futureValue',
-  'calculateMonthlyContribution',
+  'calculateMonthlyContribution', // This specific enum value might need renaming if the tab/mode label changes significantly
   'calculateInterestRate',
   'calculateInvestmentDuration',
 ]);
@@ -22,10 +22,13 @@ export const CompoundingFrequencySchema = z.enum([
 ]);
 export type CompoundingFrequency = z.infer<typeof CompoundingFrequencySchema>;
 
+export const ContributionFrequencySchema = z.enum(['monthly', 'yearly']);
+export type ContributionFrequency = z.infer<typeof ContributionFrequencySchema>;
+
 export const InvestmentFormSchema = z.object({
   initialInvestment: z.number().min(0, "Initial investment must be zero or positive").max(1000000000, "Initial investment is too large (max 1B)").nullable().optional(),
-  // Renamed from monthlyContribution to contributionAmount
   contributionAmount: z.number().min(0, "Contribution amount must be zero or positive").max(1000000, "Contribution amount is too large (max 1M)").nullable().optional(),
+  contributionFrequency: ContributionFrequencySchema.default('monthly'), // Added
   interestRate: z.number().min(0, "Interest rate must be zero or positive").max(100, "Interest rate cannot exceed 100%").nullable().optional(),
   investmentDuration: z.number().min(0, "Duration must be zero or positive").max(100, "Duration cannot exceed 100 years").nullable().optional(),
   targetFutureValue: z.number().min(0, "Target future value must be positive").max(100000000000, "Target future value is too large (max 100B)").nullable().optional(),
@@ -39,7 +42,7 @@ export interface CalculationResults {
   futureValue: number;
   totalInterest: number;
   totalContributions: number;
-  calculatedContributionAmount?: number; // Renamed
+  calculatedContributionAmount?: number; // This is the amount at the user's chosen contributionFrequency
   calculatedInterestRate?: number;
   calculatedInvestmentDuration?: number;
   originalTargetFutureValue?: number;
@@ -49,6 +52,7 @@ export interface YearlyData {
   year: number;
   startingBalance: number;
   interestEarned: number;
-  contributions: number;
+  contributions: number; // Total effective contributions for the year
   endingBalance: number;
 }
+

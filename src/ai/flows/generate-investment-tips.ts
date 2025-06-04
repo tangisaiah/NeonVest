@@ -10,18 +10,19 @@
  */
 
 import {ai} from '@/ai/genkit';
-import { CompoundingFrequencySchema } from '@/types'; // Import CompoundingFrequencySchema
+import { CompoundingFrequencySchema, ContributionFrequencySchema } from '@/types';
 import {z} from 'genkit';
 
 const InvestmentTipsInputSchema = z.object({
   initialInvestment: z.number().min(0, "Initial investment must be zero or positive").max(1000000000, "Initial investment is too large (max 1B)").describe('The initial amount invested.'),
-  contributionAmount: z.number().min(0, "Contribution amount must be zero or positive").max(1000000, "Contribution amount is too large (max 1M)").describe('The contribution amount per period.'), // Renamed
+  contributionAmount: z.number().min(0, "Contribution amount must be zero or positive").max(1000000, "Contribution amount is too large (max 1M)").describe('The contribution amount per user-defined period (monthly/yearly).'),
+  contributionFrequency: ContributionFrequencySchema.describe('The frequency at which contributions are made (monthly or yearly).'), // Added
   interestRate: z.number().min(0, "Interest rate must be zero or positive").max(100, "Interest rate cannot exceed 100%").describe('The annual interest rate (as a percentage).'),
   investmentDuration: z.number().min(0, "Duration must be zero or positive").max(100, "Duration cannot exceed 100 years").describe('The investment duration in years.'),
-  compoundingFrequency: CompoundingFrequencySchema.describe('The frequency at which interest is compounded.'), // Added
+  compoundingFrequency: CompoundingFrequencySchema.describe('The frequency at which interest is compounded.'),
   futureValue: z.number().describe('The calculated future value of the investment.'),
   totalInterest: z.number().describe('The total interest earned over the investment duration.'),
-  totalContributions: z.number().describe('The total amount contributed over the investment duration.'),
+  totalContributions: z.number().describe('The total amount contributed over the investment duration (including initial investment).'),
 });
 export type InvestmentTipsInput = z.infer<typeof InvestmentTipsInputSchema>;
 
@@ -66,16 +67,19 @@ The response should be an array of tip objects, structured like this example:
   { "title": "Example Tip Title 2", "description": "Detailed description for example tip 2." }
 ]
 
+Investment Details:
 Initial Investment: {{{initialInvestment}}}
-Contribution Amount (per period): {{{contributionAmount}}}
-Compounding Frequency: {{{compoundingFrequency}}}
+Contribution Amount: {{{contributionAmount}}} (contributed {{{contributionFrequency}}})
 Annual Interest Rate: {{{interestRate}}}%
 Investment Duration: {{{investmentDuration}}} years
-Projected Future Value: {{{futureValue}}}
+Compounding Frequency: {{{compoundingFrequency}}}
+
+Projected Results:
+Future Value: {{{futureValue}}}
 Total Interest Earned: {{{totalInterest}}}
 Total Contributions (including initial): {{{totalContributions}}}
 
-Consider common investment strategies, the compounding frequency, and market conditions when generating the tips. Be specific and actionable.
+Consider common investment strategies, the contribution frequency, the compounding frequency, and market conditions when generating the tips. Be specific and actionable.
 `,
 });
 
