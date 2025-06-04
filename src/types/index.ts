@@ -10,11 +10,11 @@ export const CalculationModeSchema = z.enum([
 export type CalculationMode = z.infer<typeof CalculationModeSchema>;
 
 export const InvestmentFormSchema = z.object({
-  initialInvestment: z.coerce.number().min(0, "Initial investment must be zero or positive"),
-  monthlyContribution: z.coerce.number().min(0, "Monthly contribution must be zero or positive").optional(),
-  interestRate: z.coerce.number().min(0, "Interest rate must be zero or positive").max(100, "Interest rate (0-100%)").optional(),
-  investmentDuration: z.coerce.number().min(0, "Duration must be zero or positive").max(100, "Duration (0-100 years)").optional(), // Allow 0 for duration if target met by initial
-  targetFutureValue: z.coerce.number().min(0, "Target future value must be positive").optional(),
+  initialInvestment: z.number().min(0, "Initial investment must be zero or positive").max(1000000000, "Initial investment is too large (max 1B)").nullable().optional(),
+  monthlyContribution: z.number().min(0, "Monthly contribution must be zero or positive").max(1000000, "Monthly contribution is too large (max 1M)").nullable().optional(),
+  interestRate: z.number().min(0, "Interest rate must be zero or positive").max(100, "Interest rate cannot exceed 100%").nullable().optional(),
+  investmentDuration: z.number().min(0, "Duration must be zero or positive").max(100, "Duration cannot exceed 100 years").nullable().optional(),
+  targetFutureValue: z.number().min(0, "Target future value must be positive").max(100000000000, "Target future value is too large (max 100B)").nullable().optional(),
   calculationMode: CalculationModeSchema.default('futureValue'),
 });
 
@@ -37,4 +37,3 @@ export interface YearlyData {
   contributions: number;
   endingBalance: number;
 }
-
