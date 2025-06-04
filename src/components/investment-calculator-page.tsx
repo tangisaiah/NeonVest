@@ -110,11 +110,11 @@ const defaultFormValues: InvestmentFormData = {
   investmentDuration: 10,
   targetFutureValue: 100000,
   calculationMode: 'futureValue',
-  compoundingFrequency: 'annually', // Changed default
+  compoundingFrequency: 'annually',
 };
 
 const getNumberOfPeriodsPerYear = (frequency: CompoundingFrequency | undefined | null): number => {
-  if (!frequency) return 1; // Default to annually if not specified
+  if (!frequency) return 1; 
   switch (frequency) {
     case 'annually': return 1;
     case 'semiannually': return 2;
@@ -125,7 +125,7 @@ const getNumberOfPeriodsPerYear = (frequency: CompoundingFrequency | undefined |
     case 'weekly': return 52;
     case 'daily': return 365;
     case 'continuously': return Infinity;
-    default: return 1; // Default to annually for unknown values
+    default: return 1; 
   }
 };
 
@@ -832,109 +832,110 @@ export default function InvestmentCalculatorPage() {
                       </FormItem>
                     )}
                   />
-                  {calculationMode !== 'calculateMonthlyContribution' && ( 
+
+                  {calculationMode !== 'calculateMonthlyContribution' ? (
                     <FormField
                       control={form.control}
-                      name="contributionAmount" 
-                      render={({ field }) => (
+                      name="contributionAmount"
+                      render={({ field: contributionAmountField }) => (
                         <FormItem>
                           <FormLabel className="flex items-center text-base">
                             <DollarSign className="mr-2 h-4 w-4 text-primary" />
                             Contribution Amount ($)
                           </FormLabel>
-                           <ShadcnFormDescription className="text-xs mb-2">
-                            Amount contributed per frequency selected below.
+                          <ShadcnFormDescription className="text-xs mb-2">
+                            Enter amount and select its contribution frequency.
                           </ShadcnFormDescription>
-                          <FormControl>
-                            <Input
-                              type="text" 
-                              placeholder="e.g., 100"
-                              {...field}
-                              value={field.value === null ? '' : formatForDisplay(field.value)}
-                              onChange={(e) => field.onChange(parseNumericInput(e.target.value))}
-                              className="text-base"
+                          <div className="flex items-end space-x-2">
+                            <FormControl className="flex-grow">
+                              <Input
+                                type="text"
+                                placeholder="e.g., 100"
+                                {...contributionAmountField}
+                                value={contributionAmountField.value === null ? '' : formatForDisplay(contributionAmountField.value)}
+                                onChange={(e) => contributionAmountField.onChange(parseNumericInput(e.target.value))}
+                                className="text-base"
+                              />
+                            </FormControl>
+                            <FormField
+                              control={form.control}
+                              name="contributionFrequency"
+                              render={({ field: contributionFrequencyField }) => (
+                                <FormItem className="pb-[1px]"> {/* Align with input bottom */}
+                                  <FormControl>
+                                    <RadioGroup
+                                      onValueChange={contributionFrequencyField.onChange}
+                                      value={contributionFrequencyField.value}
+                                      className="flex items-center space-x-2"
+                                    >
+                                      <FormItem className="flex items-center space-x-1">
+                                        <FormControl>
+                                          <RadioGroupItem value="monthly" id="monthly-contrib-freq-side" />
+                                        </FormControl>
+                                        <FormLabel htmlFor="monthly-contrib-freq-side" className="font-normal text-xs">
+                                          Monthly
+                                        </FormLabel>
+                                      </FormItem>
+                                      <FormItem className="flex items-center space-x-1">
+                                        <FormControl>
+                                          <RadioGroupItem value="yearly" id="yearly-contrib-freq-side" />
+                                        </FormControl>
+                                        <FormLabel htmlFor="yearly-contrib-freq-side" className="font-normal text-xs">
+                                          Yearly
+                                        </FormLabel>
+                                      </FormItem>
+                                    </RadioGroup>
+                                  </FormControl>
+                                  {/* Minimal FormMessage for frequency if ever needed, typically not for radios with defaults */}
+                                </FormItem>
+                              )}
                             />
-                          </FormControl>
-                          <FormMessage />
+                          </div>
+                          <FormMessage /> {/* For contributionAmount errors */}
                         </FormItem>
                       )}
                     />
-                  )}
-                  
-                  {(calculationMode === 'futureValue' || calculationMode === 'calculateInterestRate' || calculationMode === 'calculateInvestmentDuration') && (
-                     <FormField
-                      control={form.control}
-                      name="contributionFrequency"
-                      render={({ field }) => (
-                        <FormItem className="pt-1"> {/* Optimized: Reduced top padding, no separate label */}
-                          <FormControl>
-                            <RadioGroup
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                              className="flex items-center space-x-4" 
-                            >
-                              <FormItem className="flex items-center space-x-1.5">
-                                <FormControl>
-                                  <RadioGroupItem value="monthly" id="monthly-contrib-freq" />
-                                </FormControl>
-                                <FormLabel htmlFor="monthly-contrib-freq" className="font-normal text-sm">
-                                  Monthly
-                                </FormLabel>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-1.5">
-                                <FormControl>
-                                  <RadioGroupItem value="yearly" id="yearly-contrib-freq" />
-                                </FormControl>
-                                <FormLabel htmlFor="yearly-contrib-freq" className="font-normal text-sm">
-                                  Yearly
-                                </FormLabel>
-                              </FormItem>
-                            </RadioGroup>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                  
-                  {calculationMode === 'calculateMonthlyContribution' && (
-                     <FormField
-                      control={form.control}
-                      name="contributionFrequency" 
-                      render={({ field }) => (
-                        <FormItem className="space-y-2">
-                          <FormLabel className="text-base">Calculate As (Contribution Frequency)</FormLabel>
-                           <ShadcnFormDescription className="text-xs">
-                             The calculated contribution amount will be for this frequency.
-                          </ShadcnFormDescription>
-                          <FormControl>
-                            <RadioGroup
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                              className="flex items-center space-x-4 pt-1"
-                            >
-                              <FormItem className="flex items-center space-x-2">
-                                <FormControl>
-                                  <RadioGroupItem value="monthly" id="calc-monthly-contrib-freq" />
-                                </FormControl>
-                                <FormLabel htmlFor="calc-monthly-contrib-freq" className="font-normal text-base">
-                                  Monthly
-                                </FormLabel>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-2">
-                                <FormControl>
-                                  <RadioGroupItem value="yearly" id="calc-yearly-contrib-freq" />
-                                </FormControl>
-                                <FormLabel htmlFor="calc-yearly-contrib-freq" className="font-normal text-base">
-                                  Yearly
-                                </FormLabel>
-                              </FormItem>
-                            </RadioGroup>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  ) : (
+                    <>
+                      {/* This is the layout for when contributionAmount IS being calculated ('calculateMonthlyContribution' mode) */}
+                       <FormField
+                        control={form.control}
+                        name="contributionFrequency" 
+                        render={({ field }) => (
+                          <FormItem className="space-y-2">
+                            <FormLabel className="text-base">Calculate As (Contribution Frequency)</FormLabel>
+                            <ShadcnFormDescription className="text-xs">
+                                The calculated contribution amount will be for this frequency.
+                            </ShadcnFormDescription>
+                            <FormControl>
+                              <RadioGroup
+                                onValueChange={field.onChange}
+                                value={field.value}
+                                className="flex items-center space-x-4 pt-1"
+                              >
+                                <FormItem className="flex items-center space-x-2">
+                                  <FormControl>
+                                    <RadioGroupItem value="monthly" id="calc-monthly-contrib-freq" />
+                                  </FormControl>
+                                  <FormLabel htmlFor="calc-monthly-contrib-freq" className="font-normal text-base">
+                                    Monthly
+                                  </FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                  <FormControl>
+                                    <RadioGroupItem value="yearly" id="calc-yearly-contrib-freq" />
+                                  </FormControl>
+                                  <FormLabel htmlFor="calc-yearly-contrib-freq" className="font-normal text-base">
+                                    Yearly
+                                  </FormLabel>
+                                </FormItem>
+                              </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
                   )}
 
 
@@ -944,7 +945,7 @@ export default function InvestmentCalculatorPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="flex items-center text-base"><Repeat className="mr-2 h-4 w-4 text-primary" />Compounding Frequency</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className="text-base">
                               <SelectValue placeholder="Select compounding frequency" />
@@ -1253,3 +1254,4 @@ export default function InvestmentCalculatorPage() {
     </div>
   );
 }
+
