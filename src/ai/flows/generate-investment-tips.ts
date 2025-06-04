@@ -10,13 +10,15 @@
  */
 
 import {ai} from '@/ai/genkit';
+import { CompoundingFrequencySchema } from '@/types'; // Import CompoundingFrequencySchema
 import {z} from 'genkit';
 
 const InvestmentTipsInputSchema = z.object({
   initialInvestment: z.number().min(0, "Initial investment must be zero or positive").max(1000000000, "Initial investment is too large (max 1B)").describe('The initial amount invested.'),
-  monthlyContribution: z.number().min(0, "Monthly contribution must be zero or positive").max(1000000, "Monthly contribution is too large (max 1M)").describe('The monthly contribution amount.'),
+  contributionAmount: z.number().min(0, "Contribution amount must be zero or positive").max(1000000, "Contribution amount is too large (max 1M)").describe('The contribution amount per period.'), // Renamed
   interestRate: z.number().min(0, "Interest rate must be zero or positive").max(100, "Interest rate cannot exceed 100%").describe('The annual interest rate (as a percentage).'),
   investmentDuration: z.number().min(0, "Duration must be zero or positive").max(100, "Duration cannot exceed 100 years").describe('The investment duration in years.'),
+  compoundingFrequency: CompoundingFrequencySchema.describe('The frequency at which interest is compounded.'), // Added
   futureValue: z.number().describe('The calculated future value of the investment.'),
   totalInterest: z.number().describe('The total interest earned over the investment duration.'),
   totalContributions: z.number().describe('The total amount contributed over the investment duration.'),
@@ -65,14 +67,15 @@ The response should be an array of tip objects, structured like this example:
 ]
 
 Initial Investment: {{{initialInvestment}}}
-Monthly Contribution: {{{monthlyContribution}}}
-Interest Rate: {{{interestRate}}}%
+Contribution Amount (per period): {{{contributionAmount}}}
+Compounding Frequency: {{{compoundingFrequency}}}
+Annual Interest Rate: {{{interestRate}}}%
 Investment Duration: {{{investmentDuration}}} years
-Future Value: {{{futureValue}}}
+Projected Future Value: {{{futureValue}}}
 Total Interest Earned: {{{totalInterest}}}
-Total Contributions: {{{totalContributions}}}
+Total Contributions (including initial): {{{totalContributions}}}
 
-Consider common investment strategies and market conditions when generating the tips. Be specific and actionable.
+Consider common investment strategies, the compounding frequency, and market conditions when generating the tips. Be specific and actionable.
 `,
 });
 
@@ -102,6 +105,8 @@ const generateInvestmentTipsFlow = ai.defineFlow(
             errorMessage = "The AI model is currently overloaded or unavailable. Please try again later.";
         } else if (e.message.includes("validation failed")) { // Catching Zod validation errors from Genkit
             errorMessage = "There was an issue with the data sent to the AI. Please check your inputs.";
+        } else if (e.message.toLowerCase().includes("candidate was blocked due to safety")) {
+            errorMessage = "The AI could not generate tips due to safety filters. Please adjust your inputs or try a different scenario.";
         }
         else {
            errorMessage = `Failed to generate tips.`; // Keep server error details from client
