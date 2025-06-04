@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 
-const siteName = 'NeonVest';
-const siteDescription = 'Calculate your investment growth and get AI-powered tips with NeonVest. Plan your financial future with our easy-to-use investment calculator.';
+const siteName = 'Compounding$';
+const siteDescription = 'Calculate your investment growth and get AI-powered tips with Compounding$. Plan your financial future with our easy-to-use investment calculator.';
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'; // Replace with your actual domain in .env.production
 
 export const metadata: Metadata = {
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: `%s | ${siteName}`,
   },
   description: siteDescription,
-  keywords: ['investment calculator', 'future value', 'compound interest', 'financial planning', 'AI investment tips', 'neonvest', 'investment projection'],
+  keywords: ['investment calculator', 'compound interest calculator', 'future value', 'compound interest', 'financial planning', 'AI investment tips', 'compounding interest', 'compoundings.xyz', 'compounding dollar'],
   metadataBase: new URL(siteUrl),
   alternates: {
     canonical: '/',
@@ -20,12 +20,12 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     url: '/',
-    title: `${siteName} - Brighten Your Financial Future`,
+    title: `${siteName} - Compound Your Financial Future`,
     description: siteDescription,
     siteName: siteName,
     images: [
       {
-        url: 'https://placehold.co/1200x630.png?text=NeonVest+Investment+Calculator', // Replace with your actual OG image
+        url: 'https://placehold.co/1200x630.png?text=Compounding%24+Calculator', // Replace with your actual OG image
         width: 1200,
         height: 630,
         alt: `${siteName} - Investment Planning Tool`,
@@ -34,9 +34,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: `${siteName} - Brighten Your Financial Future`,
+    title: `${siteName} - Compound Your Financial Future`,
     description: siteDescription,
-    images: ['https://placehold.co/1200x630.png?text=NeonVest+Investment+Calculator'], // Replace with your actual Twitter image
+    images: ['https://placehold.co/1200x630.png?text=Compounding%24+Calculator'], // Replace with your actual Twitter image
     // creator: '@yourtwitterhandle', // Optional: Add your Twitter handle
   },
   robots: {

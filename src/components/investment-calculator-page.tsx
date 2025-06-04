@@ -99,7 +99,7 @@ interface AiTip {
 
 const defaultFormValues: InvestmentFormData = {
   initialInvestment: 1000,
-  contributionAmount: 100, // Renamed from monthlyContribution
+  contributionAmount: 100,
   interestRate: 7,
   investmentDuration: 10,
   targetFutureValue: 100000,
@@ -148,13 +148,12 @@ export default function InvestmentCalculatorPage() {
 
  const handleTabChange = (newMode: CalculationMode) => {
     setCalculationMode(newMode);
-    form.reset(defaultFormValues);
+    form.reset(defaultFormValues); // Reset to defaults first
     form.setValue('calculationMode', newMode, { shouldValidate: false });
-    // Keep default compounding frequency or allow user to change it independently.
-
+    
     let outputFieldToNullifyKey: keyof InvestmentFormData | null = null;
 
-    if (newMode === 'calculateMonthlyContribution') { // Will be calculateContributionAmount
+    if (newMode === 'calculateMonthlyContribution') { 
         outputFieldToNullifyKey = 'contributionAmount';
     } else if (newMode === 'calculateInterestRate') {
         outputFieldToNullifyKey = 'interestRate';
@@ -167,10 +166,12 @@ export default function InvestmentCalculatorPage() {
     }
 
     if (newMode === 'futureValue') {
+        // When calculating future value, targetFutureValue is not an input, so clear it.
         form.setValue('targetFutureValue', null, { shouldValidate: false });
     } else {
-        // Ensure targetFutureValue is set to its default if not calculating future value
-        form.setValue('targetFutureValue', defaultFormValues.targetFutureValue, { shouldValidate: false });
+        // For other modes, ensure targetFutureValue (which is an input) is set (e.g., to its default)
+        // form.reset already handled this, but explicitly setting if needed:
+        // form.setValue('targetFutureValue', defaultFormValues.targetFutureValue, { shouldValidate: false });
     }
     
     setResults(null);
@@ -179,13 +180,13 @@ export default function InvestmentCalculatorPage() {
     setFormInputsForAI(null);
     setChartDisplayData([]);
 
-    form.trigger();
+    form.trigger(); // Validate the new form state
   };
 
 
   const calculateFullProjection = (
     initialInvestment: number,
-    contributionAmount: number, // Renamed
+    contributionAmount: number, 
     interestRate: number,
     investmentDuration: number,
     compoundingFrequency: CompoundingFrequency
@@ -203,16 +204,15 @@ export default function InvestmentCalculatorPage() {
       const futureValue = initialInvestment * Math.exp(annualInterestRateDecimal * investmentDuration);
       const totalContributions = initialInvestment;
       const totalInterest = futureValue - totalContributions;
-      // Yearly data for continuous compounding is more complex to break down simply; returning simplified version
+      
       const yearlyDataContinuous: YearlyData[] = [];
       let currentBalanceContinuous = initialInvestment;
        for (let year = 1; year <= investmentDuration; year++) {
-          const interestThisYear = currentBalanceContinuous * (Math.exp(annualInterestRateDecimal) -1) ; // Approximate for table
           const endOfYearBalance = initialInvestment * Math.exp(annualInterestRateDecimal * year);
           yearlyDataContinuous.push({
             year: year,
             startingBalance: year === 1 ? initialInvestment : initialInvestment * Math.exp(annualInterestRateDecimal * (year -1)),
-            contributions: 0, // Simplified for continuous
+            contributions: 0, 
             interestEarned: endOfYearBalance - (initialInvestment * Math.exp(annualInterestRateDecimal*(year-1))),
             endingBalance: endOfYearBalance,
           });
@@ -240,7 +240,7 @@ export default function InvestmentCalculatorPage() {
     let periodsInCurrentYear = 0;
     let startingBalanceForYear = initialInvestment;
     let totalInterestThisYear = 0;
-    let totalContributionsThisYear = 0; // Contributions within the current year for table
+    let totalContributionsThisYear = 0; 
 
     for (let period = 1; period <= totalPeriods; period++) {
         const interestThisPeriod = currentBalance * ratePerPeriod;
@@ -255,7 +255,7 @@ export default function InvestmentCalculatorPage() {
         periodsInCurrentYear++;
 
         if (periodsInCurrentYear === periodsPerYear || period === totalPeriods) {
-            // Ensure we only add full years or the final partial year to the table.
+            
             if (yearCounterForTable <= Math.floor(investmentDuration) || (period === totalPeriods && periodsInCurrentYear > 0)) {
                 newYearlyData.push({
                     year: yearCounterForTable,
@@ -298,7 +298,7 @@ export default function InvestmentCalculatorPage() {
     console.log("FORM SUBMITTED, raw data:", data, "Mode:", currentCalculationModeFromForm);
     
     let parsedInitialInvestment = parseNumericInput(data.initialInvestment);
-    let parsedContributionAmount = parseNumericInput(data.contributionAmount); // Renamed
+    let parsedContributionAmount = parseNumericInput(data.contributionAmount); 
     let parsedInterestRate = parseNumericInput(data.interestRate);
     let parsedInvestmentDuration = parseNumericInput(data.investmentDuration);
     let parsedTargetFutureValue = parseNumericInput(data.targetFutureValue);
@@ -310,12 +310,12 @@ export default function InvestmentCalculatorPage() {
     }
     
     let projInitialInvestment: number = parsedInitialInvestment;
-    let projContributionAmount: number | null = null; // Renamed
+    let projContributionAmount: number | null = null; 
     let projInterestRate: number | null = null;
     let projInvestmentDuration: number | null = null;
     let projTargetFutureValue: number | null = parsedTargetFutureValue;
 
-    let resultsCalculatedContributionAmount: number | undefined = undefined; // Renamed
+    let resultsCalculatedContributionAmount: number | undefined = undefined; 
     let resultsCalculatedInterestRate: number | undefined = undefined;
     let resultsCalculatedInvestmentDuration: number | undefined = undefined;
     
@@ -367,8 +367,8 @@ export default function InvestmentCalculatorPage() {
             } else {
                 const futureValueOfInitial = projInitialInvestment * Math.pow(1 + ratePerPeriod, totalPeriods);
                 const denominator = (Math.pow(1 + ratePerPeriod, totalPeriods) - 1);
-                if (Math.abs(denominator) < 1e-9) {
-                    toast({ title: "Calculation Error", description: "Cannot calculate contribution (potential division by zero).", variant: "destructive" });
+                if (Math.abs(denominator) < 1e-9) { // Avoid division by zero for very small denominators
+                    toast({ title: "Calculation Error", description: "Cannot calculate contribution (potential division by zero). Try adjusting interest rate or duration.", variant: "destructive" });
                     return;
                 }
                 calculatedContribution = (projTargetFutureValue - futureValueOfInitial) * ratePerPeriod / denominator;
@@ -407,14 +407,14 @@ export default function InvestmentCalculatorPage() {
                 const valForLogDenominator = (projInitialInvestment * ratePerPeriod + projContributionAmount);
 
                 if (Math.abs(valForLogDenominator) < 1e-9 || valForLogNumerator / valForLogDenominator <= 0) {
-                     toast({ title: "Calculation Error", description: "Cannot calculate duration (invalid math due to parameters).", variant: "destructive" });
+                     toast({ title: "Calculation Error", description: "Cannot calculate duration (invalid math due to parameters). Target may be unachievable.", variant: "destructive" });
                      return;
                 }
                 calculatedTotalPeriods = Math.log(valForLogNumerator / valForLogDenominator) / Math.log(1 + ratePerPeriod);
             }
             
             if (calculatedTotalPeriods === undefined || calculatedTotalPeriods < 0 || !isFinite(calculatedTotalPeriods)) {
-                 if (resultsCalculatedInvestmentDuration !== 0) {
+                 if (resultsCalculatedInvestmentDuration !== 0) { // Avoid overwriting if already set to 0
                     toast({title: "Calculation Alert", description: "Target is likely unachievable or calculation resulted in an invalid duration.", variant: "default"});
                     return;
                  }
@@ -436,27 +436,27 @@ export default function InvestmentCalculatorPage() {
 
             const totalPeriods = projInvestmentDuration * periodsPerYear;
             let lowAnnualRate = 0.0;
-            let highAnnualRate = 5.0; // 500%
+            let highAnnualRate = 5.0; // 500% annual rate as a decimal
             let midAnnualRate;
             let fvAtMidRate;
             const maxIterations = 100;
-            const toleranceFvDiff = 0.01;
-            const toleranceRateDiff = 1e-7;
+            const toleranceFvDiff = 0.01; // $0.01 difference in FV
+            const toleranceRateDiff = 1e-7; // 0.00001% difference in rate
             let calculatedAnnualRateDecimal: number | undefined;
 
             const totalContributionsOnly = projInitialInvestment + projContributionAmount * totalPeriods;
             
-            if (projTargetFutureValue < totalContributionsOnly - toleranceFvDiff) {
+            if (projTargetFutureValue < totalContributionsOnly - toleranceFvDiff) { // Target less than total plain contributions
                  toast({ title: "Target Value Alert", description: "Target value less than total contributions. Negative interest rate required (not supported). Setting rate to 0%.", variant: "default" });
-                 calculatedAnnualRateDecimal = 0;
-            } else if (Math.abs(projTargetFutureValue - totalContributionsOnly) < toleranceFvDiff) {
-                 calculatedAnnualRateDecimal = 0;
+                 calculatedAnnualRateDecimal = 0; // as decimal
+            } else if (Math.abs(projTargetFutureValue - totalContributionsOnly) < toleranceFvDiff) { // Target equals total plain contributions
+                 calculatedAnnualRateDecimal = 0; // as decimal
             } else {
                 for (let iter = 0; iter < maxIterations; iter++) {
                     midAnnualRate = (lowAnnualRate + highAnnualRate) / 2;
                     const ratePerPeriodGuess = midAnnualRate / periodsPerYear;
 
-                    if (Math.abs(ratePerPeriodGuess) < 1e-9) {
+                    if (Math.abs(ratePerPeriodGuess) < 1e-9) { // if rate is effectively zero
                         fvAtMidRate = projInitialInvestment + projContributionAmount * totalPeriods;
                     } else {
                         fvAtMidRate = projInitialInvestment * Math.pow(1 + ratePerPeriodGuess, totalPeriods) +
@@ -464,7 +464,7 @@ export default function InvestmentCalculatorPage() {
                     }
 
                     if (Math.abs(fvAtMidRate - projTargetFutureValue) < toleranceFvDiff) {
-                        calculatedAnnualRateDecimal = midAnnualRate * 100; // Store as percentage
+                        calculatedAnnualRateDecimal = midAnnualRate; // store as decimal
                         break;
                     }
 
@@ -475,7 +475,7 @@ export default function InvestmentCalculatorPage() {
                     }
 
                      if (Math.abs(highAnnualRate - lowAnnualRate) < toleranceRateDiff) {
-                        calculatedAnnualRateDecimal = ((lowAnnualRate + highAnnualRate) / 2) * 100; // Store as percentage
+                        calculatedAnnualRateDecimal = ((lowAnnualRate + highAnnualRate) / 2); // store as decimal
                         break;
                      }
                 }
@@ -490,19 +490,19 @@ export default function InvestmentCalculatorPage() {
                                     projContributionAmount * (Math.pow(1 + ratePerPeriodGuess, totalPeriods) - 1) / ratePerPeriodGuess;
                      }
                      if (Math.abs(fvAtMidRate - projTargetFutureValue) < toleranceFvDiff * 100 ) { // Looser tolerance if not converged
-                        calculatedAnnualRateDecimal = midAnnualRate * 100;
+                        calculatedAnnualRateDecimal = midAnnualRate;
                      } else {
-                        toast({title: "Calculation Alert", description: "Could not determine a reasonable interest rate.", variant: "destructive"});
+                        toast({title: "Calculation Alert", description: "Could not determine a reasonable interest rate. Target may be too high or too low for the given parameters.", variant: "destructive"});
                         return;
                      }
                  }
             }
             
-            if (calculatedAnnualRateDecimal === undefined || calculatedAnnualRateDecimal < 0 || calculatedAnnualRateDecimal > 500 || !isFinite(calculatedAnnualRateDecimal)) { // Max 500%
+            if (calculatedAnnualRateDecimal === undefined || calculatedAnnualRateDecimal < 0 || calculatedAnnualRateDecimal > 5 || !isFinite(calculatedAnnualRateDecimal)) { // Max 500% (decimal 5)
                  toast({title: "Calculation Alert", description: "Calculated interest rate is unreasonable or invalid.", variant: "destructive"});
                  return;
             }
-            resultsCalculatedInterestRate = parseFloat(calculatedAnnualRateDecimal.toFixed(2)); // Already a percentage
+            resultsCalculatedInterestRate = parseFloat((calculatedAnnualRateDecimal * 100).toFixed(2)); // Convert to percentage for display/storage
             projInterestRate = resultsCalculatedInterestRate;
         }
 
@@ -527,7 +527,7 @@ export default function InvestmentCalculatorPage() {
         finalTotalInterest = projection.totalInterest;
         finalTotalContributions = projection.totalContributions;
         
-        if (currentCalculationModeFromForm === 'calculateMonthlyContribution' && resultsCalculatedContributionAmount !== undefined) { // calculateContributionAmount
+        if (currentCalculationModeFromForm === 'calculateMonthlyContribution' && resultsCalculatedContributionAmount !== undefined) { 
             form.setValue('contributionAmount', resultsCalculatedContributionAmount, { shouldValidate: false });
         }
         if (currentCalculationModeFromForm === 'calculateInterestRate' && resultsCalculatedInterestRate !== undefined) {
@@ -541,7 +541,7 @@ export default function InvestmentCalculatorPage() {
             futureValue: displayFutureValue,
             totalInterest: finalTotalInterest,
             totalContributions: finalTotalContributions,
-            calculatedContributionAmount: currentCalculationModeFromForm === 'calculateMonthlyContribution' ? projContributionAmount : undefined, // Renamed
+            calculatedContributionAmount: currentCalculationModeFromForm === 'calculateMonthlyContribution' ? projContributionAmount : undefined, 
             calculatedInterestRate: currentCalculationModeFromForm === 'calculateInterestRate' ? projInterestRate : undefined,
             calculatedInvestmentDuration: currentCalculationModeFromForm === 'calculateInvestmentDuration' ? projInvestmentDuration : undefined,
             originalTargetFutureValue: (currentCalculationModeFromForm !== 'futureValue' && projTargetFutureValue !== null) ? projTargetFutureValue : undefined,
@@ -552,7 +552,7 @@ export default function InvestmentCalculatorPage() {
 
         const formInputsForAICopy: InvestmentFormData = { 
             initialInvestment: projInitialInvestment,
-            contributionAmount: projContributionAmount, // Renamed
+            contributionAmount: projContributionAmount, 
             interestRate: projInterestRate,
             investmentDuration: projInvestmentDuration,
             targetFutureValue: (currentCalculationModeFromForm !== 'futureValue' && projTargetFutureValue !== null) ? projTargetFutureValue : null,
@@ -573,15 +573,15 @@ export default function InvestmentCalculatorPage() {
 
  useEffect(() => {
     if (results && formInputsForAI) {
-      const { initialInvestment, contributionAmount, interestRate, investmentDuration, compoundingFrequency } = formInputsForAI; // Added compoundingFrequency
+      const { initialInvestment, contributionAmount, interestRate, investmentDuration, compoundingFrequency } = formInputsForAI; 
       const { futureValue, totalInterest, totalContributions } = results;
 
       const allParamsPresentAndValid =
           initialInvestment !== null && !isNaN(initialInvestment) &&
-          contributionAmount !== null && !isNaN(contributionAmount) && // Renamed
+          contributionAmount !== null && !isNaN(contributionAmount) && 
           interestRate !== null && !isNaN(interestRate) &&
           investmentDuration !== null && !isNaN(investmentDuration) &&
-          compoundingFrequency !== null && // Added
+          compoundingFrequency !== null && 
           futureValue !== undefined && !isNaN(futureValue) &&
           totalInterest !== undefined && !isNaN(totalInterest) &&
           totalContributions !== undefined && !isNaN(totalContributions);
@@ -598,10 +598,10 @@ export default function InvestmentCalculatorPage() {
         try {
           const aiInput: InvestmentTipsInput = {
             initialInvestment: initialInvestment!, 
-            contributionAmount: contributionAmount!, // Renamed
+            contributionAmount: contributionAmount!, 
             interestRate: interestRate!, 
             investmentDuration: investmentDuration!, 
-            compoundingFrequency: compoundingFrequency!, // Added
+            compoundingFrequency: compoundingFrequency!, 
             futureValue: futureValue!, 
             totalInterest: totalInterest!,
             totalContributions: totalContributions!,
@@ -679,8 +679,8 @@ export default function InvestmentCalculatorPage() {
   return (
     <div className="container mx-auto p-4 md:p-8 flex flex-col items-center">
       <header className="mb-10 text-center">
-        <h1 className="text-5xl font-headline font-bold text-primary">NeonVest</h1>
-        <p className="text-muted-foreground mt-2 text-lg">Chart your financial future. Brightly.</p>
+        <h1 className="text-5xl font-headline font-bold text-primary">Compounding$</h1>
+        <p className="text-muted-foreground mt-2 text-lg">Compounding your financial future. Brightly.</p>
       </header>
 
       <Form {...form}>
@@ -691,7 +691,7 @@ export default function InvestmentCalculatorPage() {
                 <CardTitle className="text-2xl font-headline text-primary flex items-center">
                   <TrendingUp className="mr-2 h-7 w-7" /> Investment Inputs
                 </CardTitle>
-                <CardDescription>Select a tab to choose what to calculate. Input fields will show default values. The field being calculated will be blank.</CardDescription>
+                <CardDescription>Select a tab to choose what to calculate.</CardDescription>
               </CardHeader>
               <CardContent>
                  <Tabs
@@ -701,7 +701,7 @@ export default function InvestmentCalculatorPage() {
                   >
                     <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
                       <TabsTrigger value="futureValue">Future Value</TabsTrigger>
-                      <TabsTrigger value="calculateMonthlyContribution">Contrib. Amount</TabsTrigger> {/* Renamed Tab */}
+                      <TabsTrigger value="calculateMonthlyContribution">Contrib. Amount</TabsTrigger> 
                       <TabsTrigger value="calculateInterestRate">Interest Rate</TabsTrigger>
                       <TabsTrigger value="calculateInvestmentDuration">Duration</TabsTrigger>
                     </TabsList>
@@ -755,10 +755,10 @@ export default function InvestmentCalculatorPage() {
                       </FormItem>
                     )}
                   />
-                  {calculationMode !== 'calculateMonthlyContribution' && ( // calculateContributionAmount
+                  {calculationMode !== 'calculateMonthlyContribution' && ( 
                     <FormField
                       control={form.control}
-                      name="contributionAmount" // Renamed
+                      name="contributionAmount" 
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="flex items-center text-base">
@@ -975,7 +975,7 @@ export default function InvestmentCalculatorPage() {
                 {(formInputsForAI?.calculationMode === 'futureValue' || 
                   formInputsForAI?.calculationMode === 'calculateInterestRate' || 
                   formInputsForAI?.calculationMode === 'calculateInvestmentDuration') 
-                  && formInputsForAI?.contributionAmount !== null && formInputsForAI?.contributionAmount !== undefined && ( // Renamed
+                  && formInputsForAI?.contributionAmount !== null && formInputsForAI?.contributionAmount !== undefined && ( 
                     <div>
                         <p className="text-muted-foreground">Contribution Amount (Input):</p>
                         <p className="text-xl font-semibold">{formatCurrency(formInputsForAI.contributionAmount)}</p>
@@ -990,7 +990,7 @@ export default function InvestmentCalculatorPage() {
                 )}
 
                 {(formInputsForAI?.calculationMode === 'futureValue' || 
-                  formInputsForAI?.calculationMode === 'calculateMonthlyContribution' || // calculateContributionAmount
+                  formInputsForAI?.calculationMode === 'calculateMonthlyContribution' || 
                   formInputsForAI?.calculationMode === 'calculateInvestmentDuration') 
                   && formInputsForAI?.interestRate !== null && formInputsForAI?.interestRate !== undefined && (
                     <div>
@@ -1000,7 +1000,7 @@ export default function InvestmentCalculatorPage() {
                 )}
 
                 {(formInputsForAI?.calculationMode === 'futureValue' || 
-                  formInputsForAI?.calculationMode === 'calculateMonthlyContribution' || // calculateContributionAmount
+                  formInputsForAI?.calculationMode === 'calculateMonthlyContribution' || 
                   formInputsForAI?.calculationMode === 'calculateInterestRate') 
                   && formInputsForAI?.investmentDuration !== null && formInputsForAI?.investmentDuration !== undefined && (
                     <div>
@@ -1009,7 +1009,7 @@ export default function InvestmentCalculatorPage() {
                     </div>
                 )}
 
-                {results.calculatedContributionAmount !== undefined && results.calculatedContributionAmount !== null &&( // Renamed
+                {results.calculatedContributionAmount !== undefined && results.calculatedContributionAmount !== null &&( 
                      <div>
                         <p className="text-muted-foreground">Calculated Contribution Amount:</p>
                         <p className="text-xl font-semibold text-primary">{formatCurrency(results.calculatedContributionAmount)}</p>
